@@ -1,0 +1,106 @@
+"""
+Defines for netlinklib
+"""
+
+RTMGRP_LINK = 1
+
+NL_ATTR_TYPE_INVALID = 0
+NL_ATTR_TYPE_FLAG = 1
+NL_ATTR_TYPE_U8 = 2
+NL_ATTR_TYPE_U16 = 3
+NL_ATTR_TYPE_U32 = 4
+NL_ATTR_TYPE_U64 = 5
+NL_ATTR_TYPE_S8 = 6
+NL_ATTR_TYPE_S16 = 7
+NL_ATTR_TYPE_S32 = 8
+NL_ATTR_TYPE_S64 = 9
+NL_ATTR_TYPE_BINARY = 10
+NL_ATTR_TYPE_STRING = 11
+NL_ATTR_TYPE_NUL_STRING = 12
+NL_ATTR_TYPE_NESTED = 13
+NL_ATTR_TYPE_NESTED_ARRAY = 14
+NL_ATTR_TYPE_BITFIELD32 = 15
+
+# NLA flags
+NLA_F_NESTED = 1 << 15
+NLA_F_NET_BYTEORDER = 1 << 14
+
+# Netlink message flags values (nlmsghdr.flags)
+NLM_F_REQUEST = 1  # It is request message.
+NLM_F_MULTI = 2  # Multipart message, terminated by NLMSG_DONE
+NLM_F_ACK = 4  # Reply with ack, with zero or error code
+NLM_F_ECHO = 8  # Echo this request
+NLM_F_DUMP_INTR = 0x10  # Dump was inconsistent due to sequence change
+NLM_F_DUMP_FILTERED = 0x20  # Dump was filtered as requested
+
+# Modifiers to GET request
+NLM_F_ROOT = 0x100  # specify tree    root
+NLM_F_MATCH = 0x200  # return all matching
+NLM_F_ATOMIC = 0x400  # atomic GET
+NLM_F_DUMP = NLM_F_ROOT | NLM_F_MATCH
+
+# Msg types
+NLMSG_NOOP = 0x1  # Nothing
+NLMSG_ERROR = 0x2  # Error
+NLMSG_DONE = 0x3  # End of a dump
+NLMSG_OVERRUN = 0x4  # Data lost
+NLMSG_CONTROL = 0xE  # Custom message type for messaging control
+NLMSG_TRANSPORT = 0xF  # Custom message type for NL as a transport
+NLMSG_MIN_TYPE = 0x10  # < 0x10: reserved control messages
+NLMSG_MAX_LEN = 0xFFFF  # Max message length
+
+RTM_NEWLINK = 16
+RTM_DELLINK = 17
+RTM_GETLINK = 18
+RTM_SETLINK = 19
+RTM_NEWADDR = 20
+RTM_DELADDR = 21
+RTM_GETADDR = 22
+RTM_NEWROUTE = 24
+RTM_DELROUTE = 25
+RTM_GETROUTE = 26
+RTM_NEWNEIGH = 28
+RTM_DELNEIGH = 29
+RTM_GETNEIGH = 30
+
+IFLA_ADDRESS = 1
+IFLA_BROADCAST = 2
+IFLA_IFNAME = 3
+IFLA_MTU = 4
+IFLA_LINK = 5
+IFLA_QDISC = 6
+IFLA_STATS = 7
+IFLA_COST = 8
+IFLA_PRIORITY = 9
+IFLA_MASTER = 10
+IFLA_WIRELESS = 11
+IFLA_PROTINFO = 12
+IFLA_TXQLEN = 13
+IFLA_MAP = 14
+IFLA_WEIGHT = 15
+IFLA_OPERSTATE = 16
+IFLA_LINKMODE = 17
+IFLA_LINKINFO = 18
+
+IFLA_INFO_KIND = 1
+IFLA_INFO_DATA = 2
+
+IFLA_VRF_TABLE = 1
+
+IFF_UP = 0x1
+
+RTA_DST = 1
+RTA_SRC = 2
+RTA_IIF = 3
+RTA_OIF = 4
+RTA_GATEWAY = 5
+RTA_PRIORITY = 6
+RTA_PREFSRC = 7
+RTA_METRICS = 8
+RTA_MULTIPATH = 9
+RTA_PROTOINFO = 10
+RTA_FLOW = 11
+RTA_CACHEINFO = 12
+RTA_SESSION = 13
+RTA_MP_ALGO = 14
+RTA_TABLE = 15
