@@ -1,9 +1,12 @@
 #include <stdio.h>
 #include <linux/if_link.h>
+#include <linux/netlink.h>
+#include <linux/genetlink.h>
+#include <linux/rtnetlink.h>
 
-struct vn {int v; char *n;} list[] = {
+struct vn {char *n; int v;} list[] = {
 #include "p.h"
-	{0, NULL},
+	{NULL, 0},
 };
 
 int main(int const argc, char const * const argv[])
