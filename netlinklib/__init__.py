@@ -175,6 +175,8 @@ def parse_rtalist(accum: Accum, data: bytes, sel: RtaDesc) -> Accum:
 
 ############################################################
 
+IFF_UP = 1
+
 
 def parse_rtalist_if_vrf(
     accum: Dict[str, Union[int, str]], data: bytes, sel: RtaDesc
