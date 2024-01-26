@@ -23,11 +23,11 @@ __all__ = ("NllDumpInterrupted", "NllError", "nll_get_links", "nll_get_routes")
 
 
 class NllError(BaseException):
-    pass
+    """Any exception originating from here"""
 
 
 class NllDumpInterrupted(NllError):
-    pass
+    """ "dump interrupted" condition reported by the kernel"""
 
 
 def _messages(sk: socket) -> Iterable[Tuple[int, int, int, int, bytes]]:
@@ -128,6 +128,7 @@ RtaDesc = Dict[int, Tuple[Callable[..., Any], Any]]
 def to_str(
     accum: Dict[str, Union[int, str]], data: bytes, key: str
 ) -> Dict[str, Union[int, str]]:
+    """Accumulating function that saves a string"""
     accum[key] = data.rstrip(b"\0").decode("ascii")
     return accum
 
@@ -135,6 +136,7 @@ def to_str(
 def to_int(
     accum: Dict[str, Union[int, str]], data: bytes, key: str
 ) -> Dict[str, Union[int, str]]:
+    """Accumulating function that saves an integer"""
     accum[key] = int.from_bytes(data, byteorder=byteorder)
     return accum
 
@@ -142,6 +144,7 @@ def to_int(
 def to_ipaddr(
     accum: Dict[str, Union[int, str]], data: bytes, key: str
 ) -> Dict[str, Union[int, str]]:
+    """Accumulating function that saves IP address in the form of s string"""
     size = len(data)
     address: Union[IPv4Address, IPv6Address]
     if size == 4:
@@ -156,6 +159,7 @@ def to_ipaddr(
 
 
 def parse_rtalist(accum: Accum, data: bytes, sel: RtaDesc) -> Accum:
+    """Walk over a chunk with collection of RTAs and collect RTAs"""
     while data:
         if len(data) < 4:
             raise NllError(f"data len {len(data)} < 4: {data.hex()}")
@@ -207,6 +211,7 @@ _newlink_sel: RtaDesc = {
 
 
 def newlink_parser(message: bytes) -> Dict[str, Union[str, int]]:
+    """Parse NEW_LINK netlink message"""
     # pylint: disable=unused-variable
     family, if_type, index, flags, change = unpack("=BxHiII", message[:16])
     return parse_rtalist(
@@ -222,6 +227,7 @@ def newlink_parser(message: bytes) -> Dict[str, Union[str, int]]:
 def nll_get_links(
     socket: Optional[socket] = None,  # pylint: disable=redefined-outer-name
 ) -> Iterable[Dict[str, Union[str, int]]]:
+    """Public function to get all interfaces"""
     return nll_get_dump(
         RTM_GETLINK,
         RTM_NEWLINK,
@@ -239,6 +245,7 @@ def parse_nhlist(
     data: bytes,
     key: str,
 ) -> Dict[str, Union[int, str, List[Dict[str, Union[int, str]]]]]:
+    """Parse a sequence of "nexthop" records in the "MULTIPATH" RTA"""
     nhops = []
     while len(data) >= 8:
         # pylint: disable=unused-variable
@@ -280,6 +287,7 @@ def newroute_parser(  # pylint: disable=too-many-locals
     scope: int = 0,
     type: int = 0,  # pylint: disable=redefined-builtin
 ) -> List[Dict[str, Union[str, int]]]:
+    """Parse NEW_ROUTE message"""
     # pylint: disable=unused-variable
     (
         rtm_family,
@@ -326,6 +334,7 @@ def nll_get_routes(
     family: int = AF_UNSPEC,
     **kwargs: Any,
 ) -> Iterable[Dict[str, Union[str, int]]]:
+    """Public function to get all routes"""
     return [
         el
         for subl in nll_get_dump(

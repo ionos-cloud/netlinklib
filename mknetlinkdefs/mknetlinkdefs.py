@@ -102,22 +102,14 @@ arith_op = Char("+") ^ Char("-") ^ Char("*") ^ Char("/")
 arith_elem = identifier ^ integer
 arith_expr = Group(arith_elem + (arith_op + arith_elem)[...])
 paren_expr = arith_expr ^ (LPAREN + arith_expr + RPAREN)
-enumValue = Group(
-    identifier("name") + Optional(EQ + paren_expr("value"))
-)
+enumValue = Group(identifier("name") + Optional(EQ + paren_expr("value")))
 enumList = Group(enumValue + (COMMA + enumValue)[...] + Optional(COMMA))
 enum = (
-    _enum
-    + Optional(identifier("ename"))
-    + LBRACE
-    + enumList("names")
-    + RBRACE
+    _enum + Optional(identifier("ename")) + LBRACE + enumList("names") + RBRACE
 )
 enum.ignore(c_style_comment)
 
-define = (
-    LineStart() + Suppress("#define") + identifier("name") + White()
-)
+define = LineStart() + Suppress("#define") + identifier("name") + White()
 define.ignore(c_style_comment)
 
 
