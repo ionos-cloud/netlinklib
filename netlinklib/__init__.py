@@ -57,7 +57,7 @@ def _messages(sk: socket) -> Iterable[Tuple[int, int, int, int, bytes]]:
 Rtype = TypeVar("Rtype")
 
 
-def _nll_get_dump(
+def _nll_get_dump(  # pylint: disable=too-many-locals
     s: socket,
     typ: int,
     rtyp: int,
@@ -220,7 +220,7 @@ def newlink_parser(message: bytes) -> Dict[str, Union[str, int]]:
 
 
 def nll_get_links(
-    socket: Optional[socket] = None,
+    socket: Optional[socket] = None,  # pylint: disable=redefined-outer-name
 ) -> Iterable[Dict[str, Union[str, int]]]:
     return nll_get_dump(
         RTM_GETLINK,
@@ -273,7 +273,7 @@ _newroute_sel: RtaDesc = {
 }
 
 
-def newroute_parser(
+def newroute_parser(  # pylint: disable=too-many-locals
     message: bytes,
     table: int = 0,
     protocol: int = 0,
@@ -322,7 +322,7 @@ def newroute_parser(
 
 
 def nll_get_routes(
-    socket: Optional[socket] = None,
+    socket: Optional[socket] = None,  # pylint: disable=redefined-outer-name
     family: int = AF_UNSPEC,
     **kwargs: Any,
 ) -> Iterable[Dict[str, Union[str, int]]]:

@@ -93,7 +93,8 @@ class mkstemp_n:
 
 
 # syntax we don't want to see in the final parse tree
-LPAREN, RPAREN, LBRACE, RBRACE, EQ, COMMA = Suppress.using_each("(){}=,")
+# LPAREN, RPAREN, LBRACE, RBRACE, EQ, COMMA = Suppress.using_each("(){}=,")
+LPAREN, RPAREN, LBRACE, RBRACE, EQ, COMMA = (Suppress(x) for x in "(){}=,")
 _enum = Suppress("enum")
 arith_op = one_of("+ - * /")
 arith_elem = common.identifier ^ common.integer
