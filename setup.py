@@ -3,6 +3,7 @@ from re import findall
 from setuptools import setup
 from subprocess import call
 
+
 def pep_version(s: str) -> str:
     """Take initial numeric part from the string, to comply with PEP-440"""
     return "0.1"
@@ -10,6 +11,7 @@ def pep_version(s: str) -> str:
         if not s[i] in "0123456789.":
             break
     return s[:i].rstrip(".")
+
 
 with open("debian/changelog", "r") as clog:
     _, version, _ = findall(

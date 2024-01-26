@@ -1,0 +1,24 @@
+Source: netlinklib
+Maintainer: Eugene Crosser <evgenii.cherkashin@cloud.ionos.com>
+Section: misc
+Priority: optional
+Standards-Version: 3.9.2
+Build-Depends: debhelper-compat (= 12),
+ dh-python,
+ python3-all,
+ python3-setuptools,
+ python3-pyparsing,
+ linux-libc-dev,
+ black,
+ mypy,
+ pylint
+X-Python-Version: >= 3.5
+Homepage: https://gitlab.pb.local/sdn/netlinklib
+
+Package: python3-netlinklib
+Architecture: any
+Section: python
+Depends: ${misc:Depends}, ${python3:Depends}
+Description: Higher performance netlink library
+ Allow netlink "dump" operations run faster, do not parse nlattrs that are not
+ requested by the caller.

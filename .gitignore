@@ -1,1 +1,10 @@
+netlinklib/defs.py
 mknetlinkdefs/mkdefs*
+**/__pycache__/
+.pybuild/
+debian/.debhelper
+debian/*debhelper*
+debian/files
+debian/*substvars
+debian/python3-netlinklib/
+netlinklib.egg-info

@@ -159,5 +159,5 @@ if __name__ == "__main__":
     with open("mkdefs.c", "w") as out:
         print(CCODE[0], file=out)
         for name in names:
-            print(f"\t{{ \"{name}\", {name} }},", file=out)
+            print(f'\t{{ "{name}", {name} }},', file=out)
         print(CCODE[1], file=out)

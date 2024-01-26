@@ -1,0 +1,8 @@
+---
+include:
+  - project: buildchain/pipeline
+    ref: main
+    file: debian-build-recipe.yml
+
+variables:
+  RELEASES: "debian-stretch-buster ubuntu-focal-jammy-kinetic"
