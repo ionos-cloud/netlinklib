@@ -95,9 +95,10 @@ class mkstemp_n:
 # LPAREN, RPAREN, LBRACE, RBRACE, EQ, COMMA = Suppress.using_each("(){}=,")
 identifier = pyparsing_common.identifier
 integer = pyparsing_common.integer
+c_style_comment = Combine(Regex(r"/\*(?:[^*]|\*(?!/))*") + "*/")
 LPAREN, RPAREN, LBRACE, RBRACE, EQ, COMMA = (Suppress(x) for x in "(){}=,")
 _enum = Suppress("enum")
-arith_op = one_of("+ - * /")
+arith_op = Char("+") ^ Char("-") ^ Char("*") ^ Char("/")
 arith_elem = identifier ^ integer
 arith_expr = Group(arith_elem + (arith_op + arith_elem)[...])
 paren_expr = arith_expr ^ (LPAREN + arith_expr + RPAREN)
@@ -138,7 +139,7 @@ if __name__ == "__main__":
             defs.seek(0)
             rest.seek(0)
             # find instances of defines ignoring other syntax
-            for item, start, stop in define.scan_string(defs.read()):
+            for item, start, stop in define.scanString(defs.read()):
                 if item.name:
                     if match(EXCLUDE, item.name):
                         continue
@@ -146,7 +147,7 @@ if __name__ == "__main__":
                 else:
                     print("****************\n", item.dump())
             # find instances of enums ignoring other syntax
-            for item, start, stop in enum.scan_string(rest.read()):
+            for item, start, stop in enum.scanString(rest.read()):
                 idx = 0
                 for entry in item.names:
                     do_print = True
