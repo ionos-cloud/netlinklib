@@ -5,7 +5,7 @@ all: ../netlinklib/defs.py
 
 mkdefs: mkdefs.c
 
-mkdefs.c:
+mkdefs.c: mknetlinkdefs.py
 	python3 mknetlinkdefs.py
 
 clean:

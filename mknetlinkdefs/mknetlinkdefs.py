@@ -23,7 +23,6 @@ from typing import Literal as LiteralT
 from typing import Optional as OptionalT
 from types import TracebackType
 from pyparsing import *
-from pyparsing import common
 from re import match
 
 INC = "/usr/include"
@@ -96,17 +95,19 @@ class mkstemp_n:
 # LPAREN, RPAREN, LBRACE, RBRACE, EQ, COMMA = Suppress.using_each("(){}=,")
 LPAREN, RPAREN, LBRACE, RBRACE, EQ, COMMA = (Suppress(x) for x in "(){}=,")
 _enum = Suppress("enum")
+identifier = Word(identchars, identbodychars).set_name("identifier")
+integer = Word(nums).set_name("integer")
 arith_op = one_of("+ - * /")
-arith_elem = common.identifier ^ common.integer
+arith_elem = identifier ^ integer
 arith_expr = Group(arith_elem + (arith_op + arith_elem)[...])
 paren_expr = arith_expr ^ (LPAREN + arith_expr + RPAREN)
 enumValue = Group(
-    common.identifier("name") + Optional(EQ + paren_expr("value"))
+    identifier("name") + Optional(EQ + paren_expr("value"))
 )
 enumList = Group(enumValue + (COMMA + enumValue)[...] + Optional(COMMA))
 enum = (
     _enum
-    + Optional(common.identifier("ename"))
+    + Optional(identifier("ename"))
     + LBRACE
     + enumList("names")
     + RBRACE
@@ -114,7 +115,7 @@ enum = (
 enum.ignore(c_style_comment)
 
 define = (
-    LineStart() + Suppress("#define") + common.identifier("name") + White()
+    LineStart() + Suppress("#define") + identifier("name") + White()
 )
 define.ignore(c_style_comment)
 
