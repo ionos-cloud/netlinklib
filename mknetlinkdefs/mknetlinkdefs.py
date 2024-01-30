@@ -40,10 +40,6 @@ EXCLUDE = "(^__)|(^tcm_block_index$)"
 
 CCODE = (
     """#include <stdio.h>
-#include <linux/if_link.h>
-#include <linux/netlink.h>
-#include <linux/genetlink.h>
-#include <linux/rtnetlink.h>
 
 struct vn {char *n; int v;} list[] = {""",
     """\t{NULL, 0},
@@ -217,6 +213,8 @@ if __name__ == "__main__":
                 )
 
     with open("mkdefs.c", "w") as out:
+        for hdr in HEADERS:
+            print(f"#include <{hdr}>", file=out)
         print(CCODE[0], file=out)
         for name in names:
             print(f'\t{{ "{name}", {name} }},', file=out)
@@ -242,6 +240,7 @@ if __name__ == "__main__":
             f"{'*' if fmt != 's' and dim else ''}self.{nm},"
             for nm, fmt, dim in elems
         )
+        classfile += f'\tPACKFMT = "={packfmt}"\n'
         classfile += "\tdef from_bytes(self, inp: bytes) -> None:\n"
         for name, fmtchar, dim in elems:
             typ = (
@@ -252,7 +251,7 @@ if __name__ == "__main__":
                 else "int"
             )
             classfile += f"\t\tself.{name}: {typ}  # {dim} {fmtchar}\n"
-        classfile += f'\t\t{lside} = unpack("{packfmt}", inp)\n'
+        classfile += f"\t\t{lside} = unpack(self.PACKFMT, inp)\n"
     with open(argv[1], "w") if len(argv) > 1 else stdout as cl_out:
         print(
             format_file_contents(
