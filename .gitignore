@@ -1,3 +1,4 @@
+netlinklib/classes.py
 netlinklib/defs.py
 mknetlinkdefs/mkdefs*
 **/__pycache__/
