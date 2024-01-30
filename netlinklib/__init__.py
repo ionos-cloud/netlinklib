@@ -2,7 +2,6 @@
 
 from os import getpid
 from socket import AF_NETLINK, AF_UNSPEC, NETLINK_ROUTE, SOCK_RAW, socket
-from struct import pack, unpack
 from sys import byteorder
 from typing import (
     Any,
@@ -18,6 +17,7 @@ from typing import (
 from ipaddress import IPv4Address, IPv6Address, ip_address
 
 from .defs import *  # pylint: disable=wildcard-import, unused-wildcard-import
+from .classes import genlmsghdr, ifinfomsg, nlmsghdr, rtattr, rtnexthop, rtmsg
 
 __all__ = ("NllDumpInterrupted", "NllError", "nll_get_links", "nll_get_routes")
 
@@ -41,17 +41,23 @@ def _messages(sk: socket) -> Iterable[Tuple[int, int, int, int, bytes]]:
         datasize = len(buf)
         if datasize < 16:
             raise NllError(f"Short read {datasize}: {buf.hex()}")
-        msg_len, msg_type, flags, seq, pid = unpack("=LHHLL", buf[:16])
-        if datasize < msg_len:
+        mh = nlmsghdr(buf[:16])
+        if datasize < mh.nlmsg_len:
             raise NllError(
-                f"data size {datasize} less then msg_len {msg_len}:"
+                f"data size {datasize} less then msg_len {mh.nlmsg_len}:"
                 f" {buf.hex()}"
             )
-        if msg_type == NLMSG_DONE:
+        if mh.nlmsg_type == NLMSG_DONE:
             return
-        message = buf[16:msg_len]
-        buf = buf[msg_len:]
-        yield (msg_type, flags, seq, pid, message)
+        message = buf[16 : mh.nlmsg_len]
+        buf = buf[mh.nlmsg_len :]
+        yield (
+            mh.nlmsg_type,
+            mh.nlmsg_flags,
+            mh.nlmsg_seq,
+            mh.nlmsg_pid,
+            message,
+        )
 
 
 Rtype = TypeVar("Rtype")
@@ -72,7 +78,13 @@ def _nll_get_dump(  # pylint: disable=too-many-locals
     seq = 1
     flags = NLM_F_REQUEST | NLM_F_DUMP
     size = 4 + 2 + 2 + 4 + 4 + len(rtgenmsg)
-    nlhdr = pack("=IHHII", size, typ, flags, seq, pid)
+    nlhdr = nlmsghdr(
+        nlmsg_len=size,
+        nlmsg_type=typ,
+        nlmsg_flags=flags,
+        nlmsg_seq=seq,
+        nlmsg_pid=pid,
+    ).bytes
     try:
         rc = s.sendto(nlhdr + rtgenmsg, (0, 0))
     except OSError as e:
@@ -163,16 +175,16 @@ def parse_rtalist(accum: Accum, data: bytes, sel: RtaDesc) -> Accum:
     while data:
         if len(data) < 4:
             raise NllError(f"data len {len(data)} < 4: {data.hex()}")
-        rta_len, rta_type = unpack("=HH", data[:4])
-        if rta_len < 4:
-            raise NllError(f"rta_len {rta_len} < 4: {data.hex()}")
-        rta_data = data[4:rta_len]
-        increment = (rta_len + 4 - 1) & ~(4 - 1)
+        rta = rtattr(data[:4])
+        if rta.rta_len < 4:
+            raise NllError(f"rta_len {rta.rta_len} < 4: {data.hex()}")
+        rta_data = data[4 : rta.rta_len]
+        increment = (rta.rta_len + 4 - 1) & ~(4 - 1)
         if len(data) < increment:
             raise NllError(f"data len {len(data)} < {increment}: {data.hex()}")
         data = data[increment:]
-        if rta_type in sel:
-            op, *args = sel[rta_type]
+        if rta.rta_type in sel:
+            op, *args = sel[rta.rta_type]
             accum = op(accum, rta_data, *args)
     return accum
 
@@ -212,12 +224,11 @@ _newlink_sel: RtaDesc = {
 
 def newlink_parser(message: bytes) -> Dict[str, Union[str, int]]:
     """Parse NEW_LINK netlink message"""
-    # pylint: disable=unused-variable
-    family, if_type, index, flags, change = unpack("=BxHiII", message[:16])
+    ifi = ifinfomsg(message[:16])
     return parse_rtalist(
         {
-            "ifindex": index,
-            "is_up": bool(flags & IFF_UP),
+            "ifindex": ifi.ifi_index,
+            "is_up": bool(ifi.ifi_flags & IFF_UP),
         },
         message[16:],
         _newlink_sel,
@@ -231,7 +242,7 @@ def nll_get_links(
     return nll_get_dump(
         RTM_GETLINK,
         RTM_NEWLINK,
-        pack("Bxxx", AF_UNSPEC),
+        genlmsghdr(cmd=AF_UNSPEC, version=0, reserved=0).bytes,
         newlink_parser,
         sk=socket,
     )
@@ -246,24 +257,21 @@ def parse_nhlist(
     key: str,
 ) -> Dict[str, Union[int, str, List[Dict[str, Union[int, str]]]]]:
     """Parse a sequence of "nexthop" records in the "MULTIPATH" RTA"""
-    nhops = []
+    nhops: List[Dict[str, Union[int, str]]] = []
     while len(data) >= 8:
-        # pylint: disable=unused-variable
-        rtnh_len, rtnh_flags, rtnh_hops, rtnh_ifindex = unpack(
-            "=HBBI", data[:8]
-        )
+        nh = rtnexthop(data[:8])
         nhops.append(
             parse_rtalist(
                 {
                     # "rtnh_flags": rtnh_flags,
                     # "rtnh_hops": rtnh_hops,
-                    "ifindex": rtnh_ifindex,
+                    "ifindex": nh.rtnh_ifindex,
                 },
-                data[8:rtnh_len],
+                data[8 : nh.rtnh_len],
                 {RTA_GATEWAY: (to_ipaddr, "gateway")},
             )
         )
-        data = data[rtnh_len:]
+        data = data[nh.rtnh_len :]
     if data:
         raise NllError(f"Remaining nexhop data: {data.hex()}")
     accum[key] = nhops
@@ -288,42 +296,40 @@ def newroute_parser(  # pylint: disable=too-many-locals
     type: int = 0,  # pylint: disable=redefined-builtin
 ) -> List[Dict[str, Union[str, int]]]:
     """Parse NEW_ROUTE message"""
-    # pylint: disable=unused-variable
-    (
-        rtm_family,
-        dst_len,
-        src_len,
-        rtm_tos,
-        rtm_table,
-        rtm_protocol,
-        rtm_scope,
-        rtm_type,
-        rtm_flags,
-    ) = unpack("=BBBBBBBBI", message[:12])
+    rtm = rtmsg(message[:12])
     if (
         # pylint: disable=too-many-boolean-expressions
-        (table and rtm_table != table)
-        or (protocol and rtm_protocol != protocol)
-        or (scope and rtm_scope != scope)
-        or (type and rtm_type != type)
+        (table and rtm.rtm_table != table)
+        or (protocol and rtm.rtm_protocol != protocol)
+        or (scope and rtm.rtm_scope != scope)
+        or (type and rtm.rtm_type != type)
     ):
         return []
-    rtalist = parse_rtalist(
+    rtalist: Dict[str, Union[str, int]] = parse_rtalist(
         {
-            "family": rtm_family,
-            "dst_prefixlen": dst_len,
+            "family": rtm.rtm_family,
+            "dst_prefixlen": rtm.rtm_dst_len,
             # "src_len": src_len,
             # "tos": rtm_tos,
-            "table": rtm_table,
+            "table": rtm.rtm_table,
             # "protocol": rtm_protocol,
             # "scope": rtm_scope,
-            "type": rtm_type,
+            "type": rtm.rtm_type,
             # "flags": rtm_flags,
         },
         message[12:],
         _newroute_sel,
     )
-    multipath = rtalist.pop("multipath", None)
+    # the real error:
+    # netlinklib/__init__.py:323: error: Incompatible types in assignment
+    # (expression has type "str | int | None", variable has type
+    # "list[dict[str, str | int]] | None")  [assignment]
+    # Leave it TODO later
+    multipath: Optional[
+        List[Dict[str, Union[str, int]]]
+    ] = rtalist.pop(  # type:ignore
+        "multipath", None
+    )
     if multipath is not None:
         return [{**rtalist, **nhop} for nhop in multipath]
     return [rtalist]
@@ -340,7 +346,17 @@ def nll_get_routes(
         for subl in nll_get_dump(
             RTM_GETROUTE,
             RTM_NEWROUTE,
-            pack("=BxxxxxxxI", family, 0),
+            rtmsg(
+                rtm_family=family,
+                rtm_dst_len=0,
+                rtm_src_len=0,
+                rtm_tos=0,
+                rtm_table=0,
+                rtm_protocol=0,
+                rtm_scope=0,
+                rtm_type=0,
+                rtm_flags=0,
+            ).bytes,
             newroute_parser,
             sk=socket,
             **kwargs,
