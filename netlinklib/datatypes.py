@@ -1,5 +1,19 @@
 from struct import pack
-from typing import Any, Tuple
+from typing import Any, Callable, Dict, Tuple
+
+RtaDesc = Dict[int, Tuple[Callable[..., Any], Any]]
+
+
+class NllException(BaseException):
+    """Any exception originating from here"""
+
+
+class NllError(NllException):
+    """Error originating from here"""
+
+
+class NllDumpInterrupted(NllException):
+    """ "Dump interrupted" condition reported by the kernel"""
 
 
 class NllMsg:
