@@ -6,6 +6,7 @@ from sys import byteorder
 from typing import (
     Any,
     Callable,
+    cast,
     Dict,
     Iterable,
     List,
@@ -305,34 +306,27 @@ def newroute_parser(  # pylint: disable=too-many-locals
         or (type and rtm.rtm_type != type)
     ):
         return []
-    rtalist: Dict[str, Union[str, int]] = parse_rtalist(
+    m_rtalist: Dict[
+        str, Union[str, int, List[Dict[str, Union[str, int]]]]
+    ] = parse_rtalist(
         {
             "family": rtm.rtm_family,
             "dst_prefixlen": rtm.rtm_dst_len,
-            # "src_len": src_len,
-            # "tos": rtm_tos,
             "table": rtm.rtm_table,
-            # "protocol": rtm_protocol,
-            # "scope": rtm_scope,
             "type": rtm.rtm_type,
-            # "flags": rtm_flags,
         },
         message[12:],
         _newroute_sel,
     )
-    # the real error:
-    # netlinklib/__init__.py:323: error: Incompatible types in assignment
-    # (expression has type "str | int | None", variable has type
-    # "list[dict[str, str | int]] | None")  [assignment]
-    # Leave it TODO later
-    multipath: Optional[
-        List[Dict[str, Union[str, int]]]
-    ] = rtalist.pop(  # type:ignore
-        "multipath", None
+    multipath = cast(
+        List[Dict[str, Union[str, int]]], m_rtalist.pop("multipath", None)
     )
-    if multipath is not None:
-        return [{**rtalist, **nhop} for nhop in multipath]
-    return [rtalist]
+    # assert multipath is None or isinstance(multipath, list)
+    # assert all(isinstance(x, (str, int)) for x in m_rtalist.values())
+    rtalist = cast(Dict[str, Union[str, int]], m_rtalist)
+    if multipath is None:
+        return [rtalist]
+    return [{**rtalist, **nhop} for nhop in multipath]
 
 
 def nll_get_routes(
