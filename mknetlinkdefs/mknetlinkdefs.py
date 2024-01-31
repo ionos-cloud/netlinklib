@@ -33,6 +33,7 @@ HEADERS = (
     "linux/netlink.h",
     "linux/genetlink.h",
     "linux/rtnetlink.h",
+    "linux/neighbour.h",
 )
 
 # tcm_block_index is the only #define that aliases the element of a struct

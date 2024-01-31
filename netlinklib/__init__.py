@@ -1,6 +1,6 @@
 """ Netlink dump implementation replacement for pyroute2 """
 
-from socket import AF_UNSPEC, socket
+from socket import AF_BRIDGE, AF_UNSPEC, socket
 from typing import (
     Any,
     Callable,
@@ -13,7 +13,15 @@ from typing import (
     TypeVar,
     Union,
 )
-from .classes import genlmsghdr, ifinfomsg, nlmsghdr, rtattr, rtnexthop, rtmsg
+from .classes import (
+    genlmsghdr,
+    ifinfomsg,
+    nlmsghdr,
+    rtattr,
+    rtnexthop,
+    rtmsg,
+    ndmsg,
+)
 from .core import *  # pylint: disable=wildcard-import, unused-wildcard-import
 from .datatypes import NllError, RtaDesc
 from .defs import *  # pylint: disable=wildcard-import, unused-wildcard-import
@@ -183,3 +191,50 @@ def nll_get_routes(
         )
         for el in subl
     ]
+
+
+##############################################################
+
+_newneigh_sel: RtaDesc = {
+    NDA_DST: (to_ipaddr, "dst"),
+    NDA_LLADDR: (to_mac, "lladdr"),
+}
+
+
+def newneigh_parser(message: bytes) -> Dict[str, Union[str, int]]:
+    ndm = ndmsg(message[:12])
+    # TODO: except ndm.ndm_state & NUD_PERMANENT
+    return parse_rtalist(
+        {
+            "ifindex": ndm.ndm_ifindex,
+            "family": ndm.ndm_family,
+            "state": ndm.ndm_state,
+            "flags": ndm.ndm_flags,
+            "type": ndm.ndm_type,
+        },
+        message[12:],
+        _newneigh_sel,
+    )
+
+
+def nll_get_neigh(
+    socket: Optional[socket] = None,  # pylint: disable=redefined-outer-name
+    **kwargs: Any,
+) -> Iterable[Dict[str, Union[str, int]]]:
+    """Public function to get all ND cache"""
+    return nll_get_dump(
+        RTM_GETNEIGH,
+        RTM_NEWNEIGH,
+        ndmsg(
+            ndm_family=0,
+            ndm_pad1=0,
+            ndm_pad2=0,
+            ndm_ifindex=0,
+            ndm_state=0,
+            ndm_flags=0,
+            ndm_type=0,
+        ).bytes,
+        newneigh_parser,
+        sk=socket,
+        **kwargs,
+    )

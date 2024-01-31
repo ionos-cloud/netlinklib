@@ -19,7 +19,14 @@ from .datatypes import NllError, NllDumpInterrupted, RtaDesc
 from .defs import *  # pylint: disable=wildcard-import, unused-wildcard-import
 from .classes import nlmsghdr, rtattr
 
-__all__ = "nll_get_dump", "parse_rtalist", "to_str", "to_int", "to_ipaddr"
+__all__ = (
+    "nll_get_dump",
+    "parse_rtalist",
+    "to_str",
+    "to_int",
+    "to_ipaddr",
+    "to_mac",
+)
 
 
 def _messages(sk: socket) -> Iterable[Tuple[int, int, int, int, bytes]]:
@@ -132,6 +139,14 @@ def to_str(
 ) -> Dict[str, Union[int, str]]:
     """Accumulating function that saves a string"""
     accum[key] = data.rstrip(b"\0").decode("ascii")
+    return accum
+
+
+def to_mac(
+    accum: Dict[str, Union[int, str]], data: bytes, key: str
+) -> Dict[str, Union[int, str]]:
+    """Accumulating function that saves a string"""
+    accum[key] = ":".join(f"{x:02x}" for x in data)
     return accum
 
 
