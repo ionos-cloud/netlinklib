@@ -23,7 +23,7 @@ from .classes import (
     ndmsg,
 )
 from .core import *  # pylint: disable=wildcard-import, unused-wildcard-import
-from .datatypes import NllError, RtaDesc
+from .datatypes import NllDumpInterrupted, NllError, RtaDesc
 from .defs import *  # pylint: disable=wildcard-import, unused-wildcard-import
 
 IFF_UP = 1
