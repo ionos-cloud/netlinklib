@@ -25,7 +25,12 @@ class NllMsg:
     PACKFMT: str
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        if not args and kwargs:
+        try:  # Faster than checking for len(args), and this is a bottleneck
+            self.from_bytes(args[0])
+            return
+        except IndexError:
+            pass
+        if kwargs:
             try:
                 for attr in self.__slots__:
                     setattr(self, attr, kwargs[attr])
@@ -34,8 +39,6 @@ class NllMsg:
                     f"Missing kwarg {e.args[0]} for {self.__class__.__name__},"
                     f" all of {self.__slots__} must be present"
                 ) from e
-        elif len(args) == 1 and isinstance(args[0], bytes) and not kwargs:
-            self.from_bytes(args[0])
         else:
             raise TypeError(
                 f"Bad args for {self.__class__.__name__}:"
