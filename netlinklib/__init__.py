@@ -56,29 +56,41 @@ _newlink_sel: RtaDesc = {
     ),
 }
 
+_newlink_nameonly_sel: RtaDesc = {
+    IFLA_IFNAME: (to_str, "name"),
+}
 
-def newlink_parser(message: bytes) -> Dict[str, Union[str, int]]:
-    """Parse NEW_LINK netlink message"""
-    ifi = ifinfomsg(message[:16])
-    return parse_rtalist(
-        {
-            "ifindex": ifi.ifi_index,
-            "is_up": bool(ifi.ifi_flags & IFF_UP),
-        },
-        message[16:],
-        _newlink_sel,
-    )
+
+def newlink_parser(
+    nameonly: bool = False,
+) -> Callable[[bytes], Dict[str, Union[str, int]]]:
+    selector = _newlink_nameonly_sel if nameonly else _newlink_sel
+
+    def _newlink_parser(message: bytes) -> Dict[str, Union[str, int]]:
+        """Parse NEW_LINK netlink message"""
+        ifi = ifinfomsg(message[:16])
+        return parse_rtalist(
+            {
+                "ifindex": ifi.ifi_index,
+                "is_up": bool(ifi.ifi_flags & IFF_UP),
+            },
+            message[16:],
+            selector,
+        )
+
+    return _newlink_parser
 
 
 def nll_get_links(
     socket: Optional[socket] = None,  # pylint: disable=redefined-outer-name
+    nameonly: bool = False,
 ) -> Iterable[Dict[str, Union[str, int]]]:
     """Public function to get all interfaces"""
     return nll_get_dump(
         RTM_GETLINK,
         RTM_NEWLINK,
         genlmsghdr(cmd=0, version=0, reserved=0).bytes,
-        newlink_parser,
+        newlink_parser(nameonly),
         sk=socket,
     )
 
