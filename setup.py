@@ -35,5 +35,6 @@ setup(
     author="Eugene Crosser",
     author_email="evgenii.cherkashin@ionos.com",
     packages=["netlinklib"],
+    package_data={'netlinklib': ["py.typed"]},
     tests_require=["black", "pylint", "mypy"],
 )
