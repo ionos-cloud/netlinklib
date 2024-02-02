@@ -22,6 +22,8 @@ class profiling:
         Stats(self.prof).strip_dirs().sort_stats("time").print_stats(8)
         self.prof.disable()
         print("time used for", self.name, ":", after - self.before)
+        return False
+
 
 if __name__ == "__main__":
     with profiling("nll_get_links"):

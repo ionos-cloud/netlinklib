@@ -2,6 +2,7 @@
 
 from os import getpid
 from socket import AF_NETLINK, NETLINK_ROUTE, SOCK_RAW, socket
+from struct import error as StructError
 from sys import byteorder
 from typing import (
     Any,
@@ -40,7 +41,7 @@ def _messages(sk: socket) -> Iterable[Tuple[int, int, int, int, bytes]]:
         datasize = len(buf)
         if datasize < 16:
             raise NllError(f"Short read {datasize}: {buf.hex()}")
-        mh = nlmsghdr(buf[:16])
+        mh = nlmsghdr(memoryview(buf[:16]))
         if datasize < mh.nlmsg_len:
             raise NllError(
                 f"data size {datasize} less then msg_len {mh.nlmsg_len}:"
@@ -48,7 +49,7 @@ def _messages(sk: socket) -> Iterable[Tuple[int, int, int, int, bytes]]:
             )
         if mh.nlmsg_type == NLMSG_DONE:
             return
-        message = buf[16 : mh.nlmsg_len]
+        message = memoryview(buf[16 : mh.nlmsg_len])
         buf = buf[mh.nlmsg_len :]
         yield (
             mh.nlmsg_type,
@@ -138,7 +139,7 @@ def to_str(
     accum: Dict[str, Union[int, str]], data: bytes, key: str
 ) -> Dict[str, Union[int, str]]:
     """Accumulating function that saves a string"""
-    accum[key] = data.rstrip(b"\0").decode("ascii")
+    accum[key] = bytes(data).rstrip(b"\0").decode("ascii")
     return accum
 
 
@@ -178,15 +179,16 @@ def to_ipaddr(
 def parse_rtalist(accum: Accum, data: bytes, sel: RtaDesc) -> Accum:
     """Walk over a chunk with collection of RTAs and collect RTAs"""
     while data:
-        if len(data) < 4:
-            raise NllError(f"data len {len(data)} < 4: {data.hex()}")
-        rta = rtattr(data[:4])
-        if rta.rta_len < 4:
-            raise NllError(f"rta_len {rta.rta_len} < 4: {data.hex()}")
+        try:
+            rta = rtattr(data[:4])
+        except StructError as e:
+            raise NllError(e) from e
+        # if rta.rta_len < 4:
+        #     raise NllError(f"rta_len {rta.rta_len} < 4: {data.hex()}")
         rta_data = data[4 : rta.rta_len]
         increment = (rta.rta_len + 4 - 1) & ~(4 - 1)
-        if len(data) < increment:
-            raise NllError(f"data len {len(data)} < {increment}: {data.hex()}")
+        # if len(data) < increment:
+        #     raise NllError(f"data len {len(data)} < {increment}: {data.hex()}")
         data = data[increment:]
         if rta.rta_type in sel:
             op, *args = sel[rta.rta_type]
