@@ -196,17 +196,9 @@ if __name__ == "__main__":
                     print("****************\n", item.dump())
             # find instances of enums ignoring other syntax
             for item, start, stop in enum.scanString(rest.read()):
-                idx = 0
                 for entry in item.names:
-                    do_print = True
-                    if entry.value != "":
-                        try:
-                            idx = int(entry.value)
-                        except TypeError:
-                            do_print = False
-                    if do_print and not entry.name.startswith("__"):
+                    if not entry.name.startswith("__"):
                         names.add(entry.name)
-                    idx += 1
             rest.seek(0)
             for item, start, stop in struct.scanString(rest.read()):
                 structs[item.name] = (
