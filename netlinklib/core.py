@@ -34,7 +34,7 @@ def _messages(sk: socket) -> Iterable[Tuple[int, int, int, int, bytes]]:
     buf = b""
     while True:
         if len(buf) < 16:
-            buf += sk.recv(8192)
+            buf += sk.recv(65536)
         if not buf:
             return
         datasize = len(buf)

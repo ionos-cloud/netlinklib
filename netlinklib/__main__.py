@@ -1,36 +1,38 @@
 """ Manual test for netlinklib """
 
+from typing import Any, Literal
 from cProfile import Profile
 from pstats import Stats
 from time import time
 from . import nll_get_links, nll_get_routes, nll_get_neigh
 
+
+class profiling:
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def __enter__(self) -> None:
+        self.prof = Profile()
+        self.before = time()
+        self.prof.enable()
+
+    def __exit__(self, *_) -> Literal[False]:
+        after = time()
+        self.prof.create_stats()
+        Stats(self.prof).strip_dirs().sort_stats("time").print_stats(8)
+        self.prof.disable()
+        print("time used for", self.name, ":", after - self.before)
+
 if __name__ == "__main__":
-    before = time()
-    with Profile() as profile:
+    with profiling("nll_get_links"):
         links = list(nll_get_links())
-        profile.create_stats()
-        Stats(profile).strip_dirs().sort_stats("time").print_stats(10)
-    after = time()
-    print("links", len(links), after - before)
-    before = time()
-    with Profile() as profile:
+    print("links", len(links))
+    with profiling("nll_get_links(nameonly)"):
         links = list(nll_get_links(nameonly=True))
-        profile.create_stats()
-        Stats(profile).strip_dirs().sort_stats("time").print_stats(10)
-    after = time()
-    print("links(nameonly)", len(links), after - before)
-    before = time()
-    with Profile() as profile:
+    print("links", len(links))
+    with profiling("nll_get_routes"):
         routes = list(nll_get_routes())
-        profile.create_stats()
-        Stats(profile).strip_dirs().sort_stats("time").print_stats(10)
-    after = time()
-    print("routes", len(routes), after - before)
-    before = time()
-    with Profile() as profile:
+    print("routes", len(routes))
+    with profiling("nll_get_neigh"):
         neighs = list(nll_get_neigh())
-        profile.create_stats()
-        Stats(profile).strip_dirs().sort_stats("time").print_stats(10)
-    after = time()
-    print("neighs", len(neighs), after - before)
+    print("neighs", len(neighs))
