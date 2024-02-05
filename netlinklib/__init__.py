@@ -9,6 +9,7 @@ from typing import (
     Iterable,
     List,
     Optional,
+    Set,
     Tuple,
     TypeVar,
     Union,
@@ -141,12 +142,15 @@ def newroute_parser(  # pylint: disable=too-many-locals
     protocol: int = 0,
     scope: int = 0,
     type: int = 0,  # pylint: disable=redefined-builtin
+    table_set: Optional[Set[int]] = None,
 ) -> List[Dict[str, Union[str, int]]]:
     """Parse NEW_ROUTE message"""
     rtm = rtmsg(message[:12])
+    # do not run expensive parse_rtalist if we know that we don't want this
     if (
         # pylint: disable=too-many-boolean-expressions
-        (table and rtm.rtm_table != table)
+        (table_set is not None and rtm.rtm_table not in table_set)
+        or (table and rtm.rtm_table != table)
         or (protocol and rtm.rtm_protocol != protocol)
         or (scope and rtm.rtm_scope != scope)
         or (type and rtm.rtm_type != type)
