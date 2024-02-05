@@ -90,7 +90,7 @@ def nll_get_links(
     return nll_get_dump(
         RTM_GETLINK,
         RTM_NEWLINK,
-        genlmsghdr(cmd=0, version=0, reserved=0).bytes,
+        genlmsghdr().bytes,
         newlink_parser(nameonly),
         sk=socket,
     )
@@ -190,17 +190,7 @@ def nll_get_routes(
         for subl in nll_get_dump(
             RTM_GETROUTE,
             RTM_NEWROUTE,
-            rtmsg(
-                rtm_family=family,
-                rtm_dst_len=0,
-                rtm_src_len=0,
-                rtm_tos=0,
-                rtm_table=0,
-                rtm_protocol=0,
-                rtm_scope=0,
-                rtm_type=0,
-                rtm_flags=0,
-            ).bytes,
+            rtmsg(rtm_family=family).bytes,
             newroute_parser,
             sk=socket,
             **kwargs,
@@ -241,15 +231,7 @@ def nll_get_neigh(
     return nll_get_dump(
         RTM_GETNEIGH,
         RTM_NEWNEIGH,
-        ndmsg(
-            ndm_family=0,
-            ndm_pad1=0,
-            ndm_pad2=0,
-            ndm_ifindex=0,
-            ndm_state=0,
-            ndm_flags=0,
-            ndm_type=0,
-        ).bytes,
+        ndmsg().bytes,
         newneigh_parser,
         sk=socket,
         **kwargs,
