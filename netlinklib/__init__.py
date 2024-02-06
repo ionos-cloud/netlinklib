@@ -1,5 +1,6 @@
 """ Netlink dump implementation replacement for pyroute2 """
 
+from errno import ENODEV
 from socket import AF_BRIDGE, AF_UNSPEC, socket
 from typing import (
     Any,
@@ -236,3 +237,26 @@ def nll_get_neigh(
         sk=socket,
         **kwargs,
     )
+
+
+##############################################################
+
+
+def nll_link_lookup(
+    ifname: str,
+    socket: Optional[socket] = None,  # pylint: disable=redefined-outer-name
+) -> Optional[int]:
+    try:
+        msg = nll_transact(
+            RTM_GETLINK,
+            RTM_NEWLINK,
+            bytes(16),  # ifinfomsg().bytes,  # TODO: fix ifinfomsg class
+            ((IFLA_IFNAME, ifname.encode("ascii") + b"\0"),),
+            sk=socket,
+        )
+    except NllError as e:
+        if e.args[0] == -ENODEV:
+            return None
+        raise
+    response = newlink_parser()(msg)
+    return cast(int, response["ifindex"])
