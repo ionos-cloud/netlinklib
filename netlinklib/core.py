@@ -1,8 +1,9 @@
 """ Netlink dump implementation core functions """
 
-from os import getpid
+from os import getpid, strerror
 from socket import AF_NETLINK, NETLINK_ROUTE, SOCK_RAW, socket
 from struct import error as StructError
+from struct import pack, unpack
 from sys import byteorder
 from typing import (
     Any,
@@ -10,6 +11,7 @@ from typing import (
     Dict,
     Iterable,
     Optional,
+    Sequence,
     Tuple,
     TypeVar,
     Union,
@@ -22,6 +24,7 @@ from .classes import nlmsghdr, rtattr
 
 __all__ = (
     "nll_get_dump",
+    "nll_transact",
     "parse_rtalist",
     "to_str",
     "to_int",
@@ -127,6 +130,65 @@ def nll_get_dump(
             return None  # solely to make pylint happy
     else:
         return _nll_get_dump(sk, typ, rtyp, rtgenmsg, parser, **kwargs)
+
+
+def _tlv(tag: int, val: bytes) -> bytes:
+    size = 2 + 2 + len(val)
+    increment = (size + 4 - 1) & ~(4 - 1)
+    return (pack("=HH", size, tag) + val).ljust(increment, b"\0")
+
+
+def _nll_transact(
+    sk: socket,
+    typ: int,
+    expect: int,
+    rtgenmsg: bytes,
+    attrs: Sequence[Tuple[int, bytes]],
+) -> bytes:
+    pid = getpid()
+    seq = 0
+    flags = NLM_F_REQUEST | NLM_F_ACK
+    battrs = b"".join(_tlv(k, v) for k, v in attrs)
+    size = 4 + 2 + 2 + 4 + 4 + len(rtgenmsg) + len(battrs)
+    nlhdr = nlmsghdr(
+        nlmsg_len=size,
+        nlmsg_type=typ,
+        nlmsg_flags=flags,
+        nlmsg_seq=seq,
+        nlmsg_pid=pid,
+    ).bytes
+    try:
+        rc = sk.sendto(nlhdr + rtgenmsg + battrs, (0, 0))
+    except OSError as e:
+        raise NllError(e) from e
+    try:
+        buf = sk.recv(65536)
+    except OSError as e:
+        raise NllError(e) from e
+    mh = nlmsghdr(memoryview(buf)[:16])
+    if mh.nlmsg_type == NLMSG_ERROR:
+        (err,) = unpack("=i", memoryview(buf)[16:20])  # struct nlmsgerr
+        # emh = nlmsghdr(memoryview(buf)[20 : 36])  # copy of the message
+        # print(emh)
+        # print(memoryview(buf)[36:].hex())
+        raise NllError(err, f"{typ}: {attrs}: {strerror(-err)}")
+    if mh.nlmsg_type != expect:
+        raise NllError(f"Got {mh} instead of {expect}")
+    return memoryview(buf)[16:]
+
+
+def nll_transact(
+    typ: int,
+    expect: int,
+    rtgenmsg: bytes,
+    attrs: Sequence[Tuple[int, bytes]],
+    sk: Optional[socket] = None,
+) -> bytes:
+    """Send message and receive response"""
+    if sk is None:
+        with socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE) as owns:
+            return _nll_transact(owns, typ, expect, rtgenmsg, attrs)
+    return _nll_transact(sk, typ, expect, rtgenmsg, attrs)
 
 
 #######################################################################
