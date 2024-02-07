@@ -236,7 +236,7 @@ if __name__ == "__main__":
         classfile += f"\n\nclass {clname}(NllMsg):\n"
         classfile += f'\t"""struct {clname}"""\n'
         classfile += (
-            "\t__slots__ = ("
+            '\t__slots__ = ("remainder", '
             + ", ".join(f'"{nm}"' for nm, *_ in elems)
             + ")\n"
         )
@@ -247,6 +247,7 @@ if __name__ == "__main__":
         )
         classfile += f'\tPACKFMT = "{packfmt}"\n'
         classfile += f"\tSIZE = {calcsize(packfmt)}\n"
+        classfile += "\tremainder: bytes\n"
         for name, fmtchar, dim in elems:
             typ = (
                 "bytes"
