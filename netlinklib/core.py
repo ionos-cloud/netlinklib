@@ -20,7 +20,7 @@ from ipaddress import IPv4Address, IPv6Address, ip_address
 
 from .datatypes import NllError, NllDumpInterrupted, RtaDesc
 from .defs import *  # pylint: disable=wildcard-import, unused-wildcard-import
-from .classes import nlmsghdr, rtattr
+from .classes import nlmsgerr, nlmsghdr, rtattr
 
 __all__ = (
     "nll_get_dump",
@@ -145,6 +145,9 @@ def _nll_transact(
     rtgenmsg: bytes,
     attrs: Sequence[Tuple[int, bytes]],
 ) -> bytes:
+    # return message of the expected type as bytes (memoryview slice),
+    # or b"" if the response was an nlmsgerr with error == 0,
+    # or raise NllError exception.
     pid = getpid()
     seq = 0
     flags = NLM_F_REQUEST | NLM_F_ACK
@@ -165,16 +168,18 @@ def _nll_transact(
         buf = sk.recv(65536)
     except OSError as e:
         raise NllError(e) from e
-    mh = nlmsghdr(memoryview(buf)[:16])
+    data = memoryview(buf)
+    mh = nlmsghdr(data[:16])
     if mh.nlmsg_type == NLMSG_ERROR:
-        (err,) = unpack("=i", memoryview(buf)[16:20])  # struct nlmsgerr
-        # emh = nlmsghdr(memoryview(buf)[20 : 36])  # copy of the message
-        # print(emh)
-        # print(memoryview(buf)[36:].hex())
-        raise NllError(err, f"{typ}: {attrs}: {strerror(-err)}")
+        emh = nlmsgerr(data[16:20])
+        if emh.error:
+            raise NllError(
+                emh.error, f"{nlhdr!r} with {attrs}: {strerror(-emh.error)}"
+            )
+        return b""  # "no error" response to state-modifying requests
     if mh.nlmsg_type != expect:
         raise NllError(f"Got {mh} instead of {expect}")
-    return memoryview(buf)[16:]
+    return data[16:]
 
 
 def nll_transact(
