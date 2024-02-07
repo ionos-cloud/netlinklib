@@ -16,7 +16,6 @@ from typing import (
     Union,
 )
 from .classes import (
-    genlmsghdr,
     ifinfomsg,
     nlmsghdr,
     rtattr,
@@ -91,7 +90,7 @@ def nll_get_links(
     return nll_get_dump(
         RTM_GETLINK,
         RTM_NEWLINK,
-        genlmsghdr().bytes,
+        ifinfomsg().bytes,
         newlink_parser(nameonly),
         sk=socket,
     )
@@ -210,7 +209,6 @@ _newneigh_sel: RtaDesc = {
 
 def newneigh_parser(message: bytes) -> Dict[str, Union[str, int]]:
     ndm = ndmsg(message[:12])
-    # TODO: except ndm.ndm_state & NUD_PERMANENT
     return parse_rtalist(
         {
             "ifindex": ndm.ndm_ifindex,
@@ -250,7 +248,7 @@ def nll_link_lookup(
         msg = nll_transact(
             RTM_GETLINK,
             RTM_NEWLINK,
-            bytes(16),  # ifinfomsg().bytes,  # TODO: fix ifinfomsg class
+            ifinfomsg().bytes,
             ((IFLA_IFNAME, ifname.encode("ascii") + b"\0"),),
             sk=socket,
         )

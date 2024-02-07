@@ -168,6 +168,16 @@ def _mkfmt(tspc, dim):
     return fmt, dim
 
 
+def _slotname(nm):
+    # Attributes that start with "__" are "class-private", have to avoid.
+    # Attribute named "from" is not possible, mangle it to start with "_".
+    if nm.startswith("__"):
+        return nm[1:]
+    if nm == "from":
+        return "_" + nm
+    return nm
+
+
 if __name__ == "__main__":
     names = set()
     structs = {}
@@ -217,11 +227,10 @@ if __name__ == "__main__":
     classfile += "# pylint: disable=too-many-lines\n\n"
     classfile += "from struct import unpack\n"
     classfile += "from typing import List\n"
-    classfile += "from .datatypes import NllMsg"
+    classfile += "from .datatypes import NllMsg, nlmsgerr"
     for clname, _elems in structs.items():
         elems = tuple(
-            ("_from" if nm == "from" else nm, *_mkfmt(tspc, dim))
-            for nm, tspc, dim in _elems
+            (_slotname(nm), *_mkfmt(tspc, dim)) for nm, tspc, dim in _elems
         )
         classfile += f"\n\nclass {clname}(NllMsg):\n"
         classfile += f'\t"""struct {clname}"""\n'
