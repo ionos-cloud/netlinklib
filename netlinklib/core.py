@@ -44,7 +44,7 @@ def _messages(sk: socket) -> Iterable[Tuple[int, int, int, int, bytes]]:
         datasize = len(buf)
         if datasize < 16:
             raise NllError(f"Short read {datasize}: {buf.hex()}")
-        mh = nlmsghdr(memoryview(buf[:16]))
+        mh = nlmsghdr(memoryview(buf))
         if datasize < mh.nlmsg_len:
             raise NllError(
                 f"data size {datasize} less then msg_len {mh.nlmsg_len}:"
@@ -52,14 +52,13 @@ def _messages(sk: socket) -> Iterable[Tuple[int, int, int, int, bytes]]:
             )
         if mh.nlmsg_type == NLMSG_DONE:
             return
-        message = memoryview(buf[16 : mh.nlmsg_len])
         buf = buf[mh.nlmsg_len :]
         yield (
             mh.nlmsg_type,
             mh.nlmsg_flags,
             mh.nlmsg_seq,
             mh.nlmsg_pid,
-            message,
+            mh.remainder[: mh.nlmsg_len - nlmsghdr.SIZE],
         )
 
 
@@ -135,7 +134,9 @@ def nll_get_dump(
 def _tlv(tag: int, val: bytes) -> bytes:
     size = 2 + 2 + len(val)
     increment = (size + 4 - 1) & ~(4 - 1)
-    return (pack("=HH", size, tag) + val).ljust(increment, b"\0")
+    return (rtattr(rta_len=size, rta_type=tag).bytes + val).ljust(
+        increment, b"\0"
+    )
 
 
 def _nll_transact(
@@ -168,10 +169,9 @@ def _nll_transact(
         buf = sk.recv(65536)
     except OSError as e:
         raise NllError(e) from e
-    data = memoryview(buf)
-    mh = nlmsghdr(data[:16])
+    mh = nlmsghdr(memoryview(buf))
     if mh.nlmsg_type == NLMSG_ERROR:
-        emh = nlmsgerr(data[16:20])
+        emh = nlmsgerr(mh.remainder)
         if emh.error:
             raise NllError(
                 emh.error, f"{nlhdr!r} with {attrs}: {strerror(-emh.error)}"
@@ -179,7 +179,7 @@ def _nll_transact(
         return b""  # "no error" response to state-modifying requests
     if mh.nlmsg_type != expect:
         raise NllError(f"Got {mh} instead of {expect}")
-    return data[16:]
+    return mh.remainder
 
 
 def nll_transact(
@@ -247,19 +247,20 @@ def parse_rtalist(accum: Accum, data: bytes, sel: RtaDesc) -> Accum:
     """Walk over a chunk with collection of RTAs and collect RTAs"""
     while data:
         try:
-            rta = rtattr(data[:4])
+            rta = rtattr(data)
         except StructError as e:
             raise NllError(e) from e
         # if rta.rta_len < 4:
         #     raise NllError(f"rta_len {rta.rta_len} < 4: {data.hex()}")
-        rta_data = data[4 : rta.rta_len]
         increment = (rta.rta_len + 4 - 1) & ~(4 - 1)
         # if len(data) < increment:
         #     raise NllError(f"data len {len(data)} < {increment}: {data.hex()}")
         data = data[increment:]
         if rta.rta_type in sel:
             op, *args = sel[rta.rta_type]
-            accum = op(accum, rta_data, *args)
+            accum = op(
+                accum, rta.remainder[: rta.rta_len - rtattr.SIZE], *args
+            )
     return accum
 
 

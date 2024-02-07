@@ -69,13 +69,13 @@ def newlink_parser(
 
     def _newlink_parser(message: bytes) -> Dict[str, Union[str, int]]:
         """Parse NEW_LINK netlink message"""
-        ifi = ifinfomsg(message[:16])
+        ifi = ifinfomsg(message)
         return parse_rtalist(
             {
                 "ifindex": ifi.ifi_index,
                 "is_up": bool(ifi.ifi_flags & IFF_UP),
             },
-            message[16:],
+            ifi.remainder,
             selector,
         )
 
@@ -107,7 +107,7 @@ def parse_nhlist(
     """Parse a sequence of "nexthop" records in the "MULTIPATH" RTA"""
     nhops: List[Dict[str, Union[int, str]]] = []
     while len(data) >= 8:
-        nh = rtnexthop(data[:8])
+        nh = rtnexthop(data)
         nhops.append(
             parse_rtalist(
                 {
@@ -145,7 +145,7 @@ def newroute_parser(  # pylint: disable=too-many-locals
     table_set: Optional[Set[int]] = None,
 ) -> List[Dict[str, Union[str, int]]]:
     """Parse NEW_ROUTE message"""
-    rtm = rtmsg(message[:12])
+    rtm = rtmsg(message)
     # do not run expensive parse_rtalist if we know that we don't want this
     if (
         # pylint: disable=too-many-boolean-expressions
@@ -165,7 +165,7 @@ def newroute_parser(  # pylint: disable=too-many-locals
             "table": rtm.rtm_table,
             "type": rtm.rtm_type,
         },
-        message[12:],
+        rtm.remainder,
         _newroute_sel,
     )
     multipath = cast(
@@ -208,7 +208,7 @@ _newneigh_sel: RtaDesc = {
 
 
 def newneigh_parser(message: bytes) -> Dict[str, Union[str, int]]:
-    ndm = ndmsg(message[:12])
+    ndm = ndmsg(message)
     return parse_rtalist(
         {
             "ifindex": ndm.ndm_ifindex,
@@ -217,7 +217,7 @@ def newneigh_parser(message: bytes) -> Dict[str, Union[str, int]]:
             "flags": ndm.ndm_flags,
             "type": ndm.ndm_type,
         },
-        message[12:],
+        ndm.remainder,
         _newneigh_sel,
     )
 
@@ -256,5 +256,4 @@ def nll_link_lookup(
         if e.args[0] == -ENODEV:
             return None
         raise
-    response = newlink_parser()(msg)
-    return cast(int, response["ifindex"])
+    return ifinfomsg(msg).ifi_index  # ignore rtattrs
