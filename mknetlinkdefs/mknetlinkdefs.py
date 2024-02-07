@@ -16,6 +16,7 @@ To verify result against manually assembled defs file:
 from contextlib import ExitStack
 from os import unlink
 from os.path import join
+from struct import calcsize
 from sys import argv, stdout
 from tempfile import mkstemp
 from typing import ContextManager, IO, List, Literal, Tuple, Type
@@ -239,12 +240,13 @@ if __name__ == "__main__":
             + ", ".join(f'"{nm}"' for nm, *_ in elems)
             + ")\n"
         )
-        packfmt = "".join(f"{dim}{fmt}" for _, fmt, dim in elems)
+        packfmt = "=" + "".join(f"{dim}{fmt}" for _, fmt, dim in elems)
         lside = " ".join(
             f"{'*' if fmt != 's' and dim else ''}self.{nm},"
             for nm, fmt, dim in elems
         )
-        classfile += f'\tPACKFMT = "={packfmt}"\n'
+        classfile += f'\tPACKFMT = "{packfmt}"\n'
+        classfile += f"\tSIZE = {calcsize(packfmt)}\n"
         for name, fmtchar, dim in elems:
             typ = (
                 "bytes"
