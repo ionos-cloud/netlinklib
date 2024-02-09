@@ -212,7 +212,6 @@ def newneigh_parser(message: bytes) -> Dict[str, Union[str, int]]:
     return parse_rtalist(
         {
             "ifindex": ndm.ndm_ifindex,
-            "family": ndm.ndm_family,
             "state": ndm.ndm_state,
             "flags": ndm.ndm_flags,
             "type": ndm.ndm_type,
@@ -224,13 +223,14 @@ def newneigh_parser(message: bytes) -> Dict[str, Union[str, int]]:
 
 def nll_get_neigh(
     socket: Optional[socket] = None,  # pylint: disable=redefined-outer-name
+    family: int = AF_BRIDGE,
     **kwargs: Any,
 ) -> Iterable[Dict[str, Union[str, int]]]:
     """Public function to get all ND cache"""
     return nll_get_dump(
         RTM_GETNEIGH,
         RTM_NEWNEIGH,
-        ndmsg().bytes,
+        ndmsg(ndm_family=family).bytes,
         newneigh_parser,
         sk=socket,
         **kwargs,
