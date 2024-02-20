@@ -145,13 +145,14 @@ def _nll_transact(
     expect: int,
     rtgenmsg: bytes,
     attrs: Sequence[Tuple[int, bytes]],
+    nlm_flags: int,
 ) -> bytes:
     # return message of the expected type as bytes (memoryview slice),
     # or b"" if the response was an nlmsgerr with error == 0,
     # or raise NllError exception.
     pid = getpid()
     seq = 0
-    flags = NLM_F_REQUEST | NLM_F_ACK
+    flags = NLM_F_REQUEST | NLM_F_ACK | nlm_flags
     battrs = b"".join(_tlv(k, v) for k, v in attrs)
     size = 4 + 2 + 2 + 4 + 4 + len(rtgenmsg) + len(battrs)
     nlhdr = nlmsghdr(
@@ -188,12 +189,13 @@ def nll_transact(
     rtgenmsg: bytes,
     attrs: Sequence[Tuple[int, bytes]],
     sk: Optional[socket] = None,
+    nlm_flags: int = 0,
 ) -> bytes:
     """Send message and receive response"""
     if sk is None:
         with socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE) as owns:
-            return _nll_transact(owns, typ, expect, rtgenmsg, attrs)
-    return _nll_transact(sk, typ, expect, rtgenmsg, attrs)
+            return _nll_transact(owns, typ, expect, rtgenmsg, attrs, nlm_flags)
+    return _nll_transact(sk, typ, expect, rtgenmsg, attrs, nlm_flags)
 
 
 #######################################################################
