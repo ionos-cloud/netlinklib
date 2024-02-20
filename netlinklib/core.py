@@ -122,13 +122,11 @@ def nll_get_dump(
     """
     if sk is None:
         with socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE) as owns:
-            for x in _nll_get_dump(
+            yield from _nll_get_dump(
                 owns, typ, rtyp, rtgenmsg, parser, **kwargs
-            ):
-                yield x
-            return None  # solely to make pylint happy
+            )
     else:
-        return _nll_get_dump(sk, typ, rtyp, rtgenmsg, parser, **kwargs)
+        yield from _nll_get_dump(sk, typ, rtyp, rtgenmsg, parser, **kwargs)
 
 
 def _tlv(tag: int, val: bytes) -> bytes:
