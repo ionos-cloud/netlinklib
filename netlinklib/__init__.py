@@ -1,7 +1,10 @@
 """ Netlink dump implementation replacement for pyroute2 """
 
 from errno import ENODEV
-from socket import AF_BRIDGE, AF_UNSPEC, socket
+from functools import partial
+from ipaddress import ip_address
+from socket import AF_BRIDGE, AF_INET, AF_UNSPEC, socket
+from struct import pack
 from typing import (
     Any,
     Callable,
@@ -257,3 +260,57 @@ def nll_link_lookup(
             return None
         raise
     return ifinfomsg(msg).ifi_index  # ignore rtattrs
+
+
+##############################################################
+
+
+def _nll_route(
+    msg_type: int,
+    # rtmsg args
+    family: int = AF_INET,
+    dst_prefixlen: int = 0,
+    src_prefixlen: int = 0,
+    tos: int = 0,
+    table: int = 254,  # RT_TABLE_MAIN
+    protocol: int = RTPROT_BOOT,
+    scope: int = RT_SCOPE_LINK,
+    type: int = RTN_UNICAST,
+    # rta args
+    dst: Optional[str] = None,
+    ifindex: Optional[int] = None,
+    metric: Optional[int] = None,
+    gateway: Optional[str] = None,
+    socket: Optional[socket] = None,  # pylint: disable=redefined-outer-name
+) -> None:
+    nll_transact(
+        msg_type,
+        msg_type,
+        rtmsg(
+            rtm_family=family,
+            rtm_dst_len=dst_prefixlen,
+            rtm_src_len=src_prefixlen,
+            rtm_tos=tos,
+            rtm_table=table,
+            rtm_protocol=protocol,
+            rtm_scope=scope,
+            rtm_type=type,
+        ).bytes,
+        tuple(
+            (opt, fmt(optval))
+            for opt, fmt, optval in (
+                (RTA_TABLE, lambda x: pack("i", x), table),
+                (RTA_DST, lambda ip: ip_address(ip).packed, dst),
+                (RTA_OIF, lambda x: pack("i", x), ifindex),
+                (RTA_PRIORITY, lambda x: pack("i", x), metric),
+                (RTA_GATEWAY, lambda ip: ip_address(ip).packed, gateway),
+            )
+            if optval is not None
+        ),
+        sk=socket,
+        nlm_flags=NLM_F_CREATE,
+    )
+
+
+nll_route_add = partial(_nll_route, RTM_NEWROUTE)
+nll_route_del = partial(_nll_route, RTM_DELROUTE)
