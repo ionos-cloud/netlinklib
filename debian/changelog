@@ -1,3 +1,20 @@
+netlinklib (0.03) stable; urgency=medium
+
+  [ Eugene Crosser ]
+  * support default 0 for integer class kwargs
+  * Implemented nll_link_lookup
+  * Fix missing class, use proper class for link dump
+  * Include binary size of each message class
+  * make message parser use SIZE and leave remainder
+  * Get rid of manual slicing of the data
+  * For neigh lookup use AF_BRIDGE by default (fdb)
+
+  [ Michael Dickensheets ]
+  * support add/del_route txns
+  * core: use 'yield from' in nll_get_dump
+
+ -- Michael Dickensheets <michael.dickensheets@ionos.com>  Tue, 20 Feb 2024 14:26:28 +0100
+
 netlinklib (0.02) stable; urgency=medium
 
   * Add tests
