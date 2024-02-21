@@ -3,7 +3,6 @@
 from os import getpid, strerror
 from socket import AF_NETLINK, NETLINK_ROUTE, SOCK_RAW, socket
 from struct import error as StructError
-from struct import pack, unpack
 from sys import byteorder
 from typing import (
     Any,
@@ -24,6 +23,7 @@ from .classes import nlmsgerr, nlmsghdr, rtattr
 
 __all__ = (
     "nll_get_dump",
+    "nll_handle_event",
     "nll_transact",
     "parse_rtalist",
     "to_str",
@@ -34,32 +34,31 @@ __all__ = (
 
 
 def _messages(sk: socket) -> Iterable[Tuple[int, int, int, int, bytes]]:
-    """Iterator to return sequence of nl messages read from the socket"""
-    buf = b""
+    """
+    Iterator to return sequence of nl messages read from the socket.
+    Netlink uses datagram sockets, so messages are received whole.
+    Python `recv` may bundle several (full) messages together.
+    """
     while True:
-        if len(buf) < 16:
-            buf += sk.recv(65536)
+        try:
+            buf = memoryview(sk.recv(65536))
+        # Non-blocking socket has no data available.
+        except BlockingIOError:
+            return
         if not buf:
             return
-        datasize = len(buf)
-        if datasize < 16:
-            raise NllError(f"Short read {datasize}: {buf.hex()}")
-        mh = nlmsghdr(memoryview(buf))
-        if datasize < mh.nlmsg_len:
-            raise NllError(
-                f"data size {datasize} less then msg_len {mh.nlmsg_len}:"
-                f" {buf.hex()}"
+        while buf:
+            mh = nlmsghdr(buf)
+            if mh.nlmsg_type == NLMSG_DONE:
+                return
+            buf = buf[mh.nlmsg_len :]
+            yield (
+                mh.nlmsg_type,
+                mh.nlmsg_flags,
+                mh.nlmsg_seq,
+                mh.nlmsg_pid,
+                mh.remainder[: mh.nlmsg_len - nlmsghdr.SIZE],
             )
-        if mh.nlmsg_type == NLMSG_DONE:
-            return
-        buf = buf[mh.nlmsg_len :]
-        yield (
-            mh.nlmsg_type,
-            mh.nlmsg_flags,
-            mh.nlmsg_seq,
-            mh.nlmsg_pid,
-            mh.remainder[: mh.nlmsg_len - nlmsghdr.SIZE],
-        )
 
 
 Rtype = TypeVar("Rtype")
@@ -194,6 +193,20 @@ def nll_transact(
         with socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE) as owns:
             return _nll_transact(owns, typ, expect, rtgenmsg, attrs, nlm_flags)
     return _nll_transact(sk, typ, expect, rtgenmsg, attrs, nlm_flags)
+
+
+def nll_handle_event(
+    parsers: Dict[int, Callable[[bytes], Any]],
+    sk: socket,
+) -> Iterable[Tuple[int, Any]]:
+    """
+    Fetch and parse messages of given types.
+    """
+    for msg_type, _, _, _, message in _messages(sk):
+        try:
+            yield (msg_type, parsers[msg_type](message))
+        except KeyError:
+            raise NllError(f"No parser for message type {msg_type}")
 
 
 #######################################################################
