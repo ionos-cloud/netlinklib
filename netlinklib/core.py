@@ -106,7 +106,7 @@ def _nll_get_dump(  # pylint: disable=too-many-locals
             dump_interrupted = True  # and continue reading
         yield parser(message, **kwargs)
     if dump_interrupted:
-        raise NllDumpInterrupted  # raise this instead of StopIteration
+        raise NllDumpInterrupted()  # raise this instead of StopIteration
 
 
 def nll_get_dump(
