@@ -36,7 +36,7 @@ from .classes import (
     ndmsg,
 )
 from .core import *  # pylint: disable=wildcard-import, unused-wildcard-import
-from .datatypes import NllDumpInterrupted, NllError, RtaDesc
+from .datatypes import *
 from .defs import *  # pylint: disable=wildcard-import, unused-wildcard-import
 
 IFF_UP = 1
@@ -176,6 +176,7 @@ def newroute_parser(  # pylint: disable=too-many-locals
             "dst_prefixlen": rtm.rtm_dst_len,
             "table": rtm.rtm_table,
             "type": rtm.rtm_type,
+            "protocol": rtm.rtm_protocol,
         },
         rtm.remainder,
         _newroute_sel,
