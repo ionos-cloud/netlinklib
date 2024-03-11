@@ -177,6 +177,7 @@ def newroute_parser(  # pylint: disable=too-many-locals
             "table": rtm.rtm_table,
             "type": rtm.rtm_type,
             "protocol": rtm.rtm_protocol,
+            "scope": rtm.rtm_scope,
         },
         rtm.remainder,
         _newroute_sel,
