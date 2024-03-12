@@ -32,6 +32,8 @@ __all__ = (
     "to_mac",
 )
 
+SOL_NETLINK = 270
+
 
 def _messages(sk: socket) -> Iterable[Tuple[int, int, int, int, bytes]]:
     """
@@ -64,11 +66,20 @@ def _messages(sk: socket) -> Iterable[Tuple[int, int, int, int, bytes]]:
 Rtype = TypeVar("Rtype")
 
 
+def _tlv(tag: int, val: bytes) -> bytes:
+    size = 2 + 2 + len(val)
+    increment = (size + 4 - 1) & ~(4 - 1)
+    return (rtattr(rta_len=size, rta_type=tag).bytes + val).ljust(
+        increment, b"\0"
+    )
+
+
 def _nll_get_dump(  # pylint: disable=too-many-locals
     s: socket,
     typ: int,
     rtyp: int,
     rtgenmsg: bytes,
+    attrs: Sequence[Tuple[int, bytes]],
     parser: Callable[[bytes], Rtype],
     **kwargs: Any,
 ) -> Iterable[Rtype]:
@@ -78,7 +89,8 @@ def _nll_get_dump(  # pylint: disable=too-many-locals
     pid = getpid()
     seq = 1
     flags = NLM_F_REQUEST | NLM_F_DUMP
-    size = 4 + 2 + 2 + 4 + 4 + len(rtgenmsg)
+    battrs = b"".join(_tlv(k, v) for k, v in attrs)
+    size = nlmsghdr.SIZE + len(rtgenmsg) + len(battrs)
     nlhdr = nlmsghdr(
         nlmsg_len=size,
         nlmsg_type=typ,
@@ -87,7 +99,7 @@ def _nll_get_dump(  # pylint: disable=too-many-locals
         nlmsg_pid=pid,
     ).bytes
     try:
-        rc = s.sendto(nlhdr + rtgenmsg, (0, 0))
+        rc = s.sendto(nlhdr + rtgenmsg + battrs, (0, 0))
     except OSError as e:
         raise NllError(e) from e
     if rc < 0:
@@ -112,6 +124,7 @@ def nll_get_dump(
     typ: int,
     rtyp: int,
     rtgenmsg: bytes,
+    attrs: Sequence[Tuple[int, bytes]],
     parser: Callable[[bytes], Rtype],
     sk: Optional[socket] = None,
     **kwargs: Any,
@@ -121,19 +134,14 @@ def nll_get_dump(
     """
     if sk is None:
         with socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE) as owns:
+            owns.setsockopt(SOL_NETLINK, NETLINK_GET_STRICT_CHK, 1)
             yield from _nll_get_dump(
-                owns, typ, rtyp, rtgenmsg, parser, **kwargs
+                owns, typ, rtyp, rtgenmsg, attrs, parser, **kwargs
             )
     else:
-        yield from _nll_get_dump(sk, typ, rtyp, rtgenmsg, parser, **kwargs)
-
-
-def _tlv(tag: int, val: bytes) -> bytes:
-    size = 2 + 2 + len(val)
-    increment = (size + 4 - 1) & ~(4 - 1)
-    return (rtattr(rta_len=size, rta_type=tag).bytes + val).ljust(
-        increment, b"\0"
-    )
+        yield from _nll_get_dump(
+            sk, typ, rtyp, rtgenmsg, attrs, parser, **kwargs
+        )
 
 
 def _nll_transact(
@@ -151,7 +159,7 @@ def _nll_transact(
     seq = 0
     flags = NLM_F_REQUEST | NLM_F_ACK | nlm_flags
     battrs = b"".join(_tlv(k, v) for k, v in attrs)
-    size = 4 + 2 + 2 + 4 + 4 + len(rtgenmsg) + len(battrs)
+    size = nlmsghdr.SIZE + len(rtgenmsg) + len(battrs)
     nlhdr = nlmsghdr(
         nlmsg_len=size,
         nlmsg_type=typ,

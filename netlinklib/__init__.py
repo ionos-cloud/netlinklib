@@ -103,6 +103,7 @@ def nll_get_links(
         RTM_GETLINK,
         RTM_NEWLINK,
         ifinfomsg().bytes,
+        (),
         newlink_parser(nameonly),
         sk=socket,
     )
@@ -205,6 +206,7 @@ def nll_get_routes(
             RTM_GETROUTE,
             RTM_NEWROUTE,
             rtmsg(rtm_family=family).bytes,
+            (),
             newroute_parser,
             sk=socket,
             **kwargs,
@@ -245,6 +247,7 @@ def nll_get_neigh(
         RTM_GETNEIGH,
         RTM_NEWNEIGH,
         ndmsg(ndm_family=family).bytes,
+        (),
         newneigh_parser,
         sk=socket,
         **kwargs,
