@@ -310,10 +310,10 @@ def _nll_route(
         tuple(
             (opt, fmt(optval))
             for opt, fmt, optval in (
-                (RTA_TABLE, lambda x: pack("i", x), table),
+                (RTA_TABLE, lambda x: pack("=i", x), table),
                 (RTA_DST, lambda ip: ip_address(ip).packed, dst),
-                (RTA_OIF, lambda x: pack("i", x), ifindex),
-                (RTA_PRIORITY, lambda x: pack("i", x), metric),
+                (RTA_OIF, lambda x: pack("=i", x), ifindex),
+                (RTA_PRIORITY, lambda x: pack("=i", x), metric),
                 (RTA_GATEWAY, lambda ip: ip_address(ip).packed, gateway),
             )
             if optval is not None
