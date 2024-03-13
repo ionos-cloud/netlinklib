@@ -197,16 +197,40 @@ def newroute_parser(  # pylint: disable=too-many-locals
 def nll_get_routes(
     socket: Optional[socket] = None,  # pylint: disable=redefined-outer-name
     family: int = AF_UNSPEC,
+    flags: Optional[int] = None,
+    protocol: Optional[int] = None,
+    type: Optional[int] = None,
+    table: Optional[int] = None,
+    oif: Optional[int] = None,
     **kwargs: Any,
 ) -> Iterable[Dict[str, Union[str, int]]]:
     """Public function to get all routes"""
+    # net/ipv4/fib_frontend.c:910
+    rtm_kw = {
+        k: v
+        for k, v in (
+            ("rtm_family", family),
+            ("rtm_flags", flags),
+            ("rtm_protocol", protocol),
+            ("rtm_type", type),
+        )
+        if v is not None
+    }
+    # if table is not None and table <= 255:
+    #     rtm_kw["rtm_table"] = table
+    rtm_nla = tuple(
+        (k, pack("=i", v))
+        for k, v in ((RTA_TABLE, table), (RTA_OIF, oif))
+        if v is not None
+    )
+    # print("rtm_kw", rtm_kw, "rtm_nla", rtm_nla)
     return [
         el
         for subl in nll_get_dump(
             RTM_GETROUTE,
             RTM_NEWROUTE,
-            rtmsg(rtm_family=family).bytes,
-            (),
+            rtmsg(**rtm_kw).bytes,
+            rtm_nla,
             newroute_parser,
             sk=socket,
             **kwargs,
