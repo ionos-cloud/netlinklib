@@ -26,6 +26,7 @@ __all__ = (
     "nll_handle_event",
     "nll_transact",
     "parse_rtalist",
+    "pack_attr",
     "to_str",
     "to_int",
     "to_ipaddr",
@@ -66,7 +67,7 @@ def _messages(sk: socket) -> Iterable[Tuple[int, int, int, int, bytes]]:
 Rtype = TypeVar("Rtype")
 
 
-def _tlv(tag: int, val: bytes) -> bytes:
+def pack_attr(tag: int, val: bytes) -> bytes:
     size = 2 + 2 + len(val)
     increment = (size + 4 - 1) & ~(4 - 1)
     return (rtattr(rta_len=size, rta_type=tag).bytes + val).ljust(
@@ -89,7 +90,7 @@ def _nll_get_dump(  # pylint: disable=too-many-locals
     pid = getpid()
     seq = 1
     flags = NLM_F_REQUEST | NLM_F_DUMP
-    battrs = b"".join(_tlv(k, v) for k, v in attrs)
+    battrs = b"".join(pack_attr(k, v) for k, v in attrs)
     size = nlmsghdr.SIZE + len(rtgenmsg) + len(battrs)
     nlhdr = nlmsghdr(
         nlmsg_len=size,
@@ -158,7 +159,7 @@ def _nll_transact(
     pid = getpid()
     seq = 0
     flags = NLM_F_REQUEST | NLM_F_ACK | nlm_flags
-    battrs = b"".join(_tlv(k, v) for k, v in attrs)
+    battrs = b"".join(pack_attr(k, v) for k, v in attrs)
     size = nlmsghdr.SIZE + len(rtgenmsg) + len(battrs)
     nlhdr = nlmsghdr(
         nlmsg_len=size,

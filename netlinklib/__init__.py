@@ -22,6 +22,7 @@ from typing import (
     Iterable,
     List,
     Optional,
+    Sequence,
     Set,
     Tuple,
     TypeVar,
@@ -320,7 +321,30 @@ def _nll_route(
     metric: Optional[int] = None,
     gateway: Optional[str] = None,
     socket: Optional[socket] = None,  # pylint: disable=redefined-outer-name
+    multipath: Optional[Sequence[Dict[str, Union[int, str]]]] = None,
 ) -> None:
+    def pack_multipath(
+        # flags: int = 0,
+        # hops: int = 0,
+        ifindex: int = 0,
+        gateway: Optional[str] = None,
+    ) -> bytes:
+        gwattr = (
+            pack_attr(RTA_GATEWAY, ip_address(gateway).packed)
+            if gateway
+            else b""
+        )
+        size = 2 + 1 + 1 + 4 + len(gwattr)
+        return (
+            rtnexthop(
+                rtnh_len=size,
+                # rtnh_flags=flags,
+                # rtnh_hops=hops,
+                rtnh_ifindex=ifindex,
+            ).bytes
+            + gwattr
+        )
+
     nll_transact(
         msg_type,
         msg_type,
@@ -342,6 +366,11 @@ def _nll_route(
                 (RTA_OIF, lambda x: pack("=i", x), ifindex),
                 (RTA_PRIORITY, lambda x: pack("=i", x), metric),
                 (RTA_GATEWAY, lambda ip: ip_address(ip).packed, gateway),
+                (
+                    RTA_MULTIPATH,
+                    lambda x: b"".join(pack_multipath(**path) for path in x),
+                    multipath,
+                ),
             )
             if optval is not None
         ),
