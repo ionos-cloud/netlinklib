@@ -353,7 +353,7 @@ def _nll_route(
             rtm_dst_len=dst_prefixlen,
             rtm_src_len=src_prefixlen,
             rtm_tos=tos,
-            rtm_table=table,
+            # rtm_table=table,  # use full length rtattr instead
             rtm_protocol=protocol,
             rtm_scope=scope,
             rtm_type=type,
