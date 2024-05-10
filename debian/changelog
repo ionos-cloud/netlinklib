@@ -1,3 +1,59 @@
+netlinklib (1.0) stable; urgency=medium
+
+  [ Eugene Crosser ]
+  * Add tests
+  * add tests, do not use Suppress.using_each()
+  * mknetlinkdefs: do not use pyparsing.common
+  * pyparsing compatibility tweaks
+  * mknetlinkdefs: more compatibility with pyparsing
+  * styling cleanups
+  * Build netlinklib.classes python definitions
+  * Make a base class with useful methods
+  * convert to using new classes from raw pack/unpack
+  * make mypy happy with complex dict
+  * Take common parts away from __init__.py
+  * Some pylinting
+  * Implement `nll_get_neigh()`
+  * add py.typed
+  * NllDumpInterrupted needed for reexport from top
+  * include py.typed in setup.py
+  * nll_get_links(nameonly=True) is a bit faster
+  * optimise class constructor for speed
+  * test script __main__ use better profiling
+  * Use memoryview; remove some checks for speed
+  * mkdefs: allow enum value to be anything
+  * allow all_routes be cut down by table_set
+  * support default 0 for integer class kwargs
+  * Implemented nll_link_lookup
+  * Fix missing class, use proper class for link dump
+  * Include binary size of each message class
+  * make message parser use SIZE and leave remainder
+  * Get rid of manual slicing of the data
+  * For neigh lookup use AF_BRIDGE by default (fdb)
+
+  [ Michael Dickensheets ]
+  * support add/del_route txns
+  * core: use 'yield from' in nll_get_dump
+
+  [ Eugene Crosser ]
+  * raise an instance NllDumpInterrupted() as we must
+
+  [ Michael Dickensheets ]
+  * nll_get_event: listen on socket and parse netlink events
+  * newroute_parser: include 'protocol' in output dict
+  * newroute_parser: include scope in response dict
+  * _nll_route: use 'standard' integer format when build packet instead of 'native'
+
+  [ Eugene Crosser ]
+  * Allow attrs for nll_get_dump() too
+  * support kernel side filtering for dump_routes
+
+  [ Michael Dickensheets ]
+  * nll_route: support multipath routes
+  * route: use attr for selecting krt
+
+ -- Michael Dickensheets <michael.dickensheets@ionos.com>  Fri, 10 May 2024 15:50:46 +0200
+
 netlinklib (0.01) stable; urgency=medium
 
   * Initial version
