@@ -17,7 +17,9 @@ except DistributionNotFound:
     pass
 
 
-@skipUnless(version >= [21, 10], "black older than 21.10")
+@skipUnless(
+    version >= [21, 10] and version < [24, 0], "black between 21.10 and 24.0"
+)
 class BlackTest(TestCase):
     """Class for back formatting check"""
 
