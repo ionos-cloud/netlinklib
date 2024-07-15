@@ -35,7 +35,7 @@ module.
 ## Extra features and missing features
 
 This package includes a builder helper in `mknetlinkdefs`: a program that
-partially parses netlink related header files from Linux kernel and coverts
+partially parses netlink related header files from Linux kernel and converts
 structs, enums and defines into variable and class definitions in a
 generated Python module. This allows us to use the same names that are used
 in the C code that deals with netlink objects. The process is somewhat flaky,
@@ -47,7 +47,7 @@ the `Makefile` in `mknetlinkdefs`.
 Unfortunately, kernel code does not contain information about the type
 of NLA values of netlink messages. Dealing with the interpretation of the
 byte values of NLAs has to be left to be hardcoded in the high level API
-functions (or suppled by the end user).
+functions (or supplied by the end user).
 
 ## High Level API
 
