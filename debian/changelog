@@ -1,3 +1,10 @@
+netlinklib (1.0.2) stable; urgency=medium
+
+  [ Eugene Crosser ]
+  * Expand README for external use
+
+ -- Michael Dickensheets <michael.dickensheets@ionos.com>  Mon, 15 Jul 2024 16:27:06 +0200
+
 netlinklib (1.0.1) stable; urgency=medium
 
   * tests: disable black v24 for now
