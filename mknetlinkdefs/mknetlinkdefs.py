@@ -35,10 +35,12 @@ HEADERS = (
     "linux/genetlink.h",
     "linux/rtnetlink.h",
     "linux/neighbour.h",
+    "linux/pkt_sched.h",
+    "linux/pkt_cls.h",
 )
 
-# tcm_block_index is the only #define that aliases the element of a struct
-EXCLUDE = "(^__)|(^tcm_block_index$)"
+# Some tcm_* defines are different, and luckily not relevant to us
+EXCLUDE = "(^__)|(^tcm_block_index$)|(^tc_gen$)"
 
 CCODE = (
     """#include <stdio.h>
@@ -140,7 +142,8 @@ define.ignore(c_style_comment)
 
 TDICT = {
     "__kernel_sa_family_t": ("H", 0),
-    "__be16": ("H", 2),
+    "__be16": ("B", 2),
+    "__be32": ("B", 4),
     "__u8": ("B", 0),
     "char": ("b", 0),
     "unsignedchar": ("B", 0),
@@ -148,6 +151,7 @@ TDICT = {
     "short": ("h", 0),
     "unsignedshort": ("H", 0),
     "__s32": ("l", 0),
+    "__s64": ("q", 0),
     "int": ("i", 0),
     "unsigned": ("I", 0),
     "unsignedint": ("I", 0),
@@ -174,7 +178,7 @@ def _slotname(nm):
     # Attribute named "from" is not possible, mangle it to start with "_".
     if nm.startswith("__"):
         return nm[1:]
-    if nm == "from":
+    if nm in ("from", "bytes"):
         return "_" + nm
     return nm
 
