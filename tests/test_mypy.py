@@ -20,10 +20,7 @@ class TypeCheckTest(TestCase):
         super().__init__(*args, **kwargs)
         self.mypy_env: List[str] = environ.copy()
         # self.mypy_env.update({"MYPYPATH": "mypystubs"})
-        self.mypy_opts: List[str] = [
-            "--ignore-missing-imports"
-            #  , "--strict"]
-        ]
+        self.mypy_opts: List[str] = ["--strict"]
 
     @skipUnless(mypy_version > [0, 971], "Do not trust earlier mypy versions")
     def test_run_mypy(self):

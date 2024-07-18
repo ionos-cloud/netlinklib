@@ -19,7 +19,7 @@ from ipaddress import IPv4Address, IPv6Address, ip_address
 
 from .datatypes import NllError, NllDumpInterrupted, RtaDesc
 from .defs import *  # pylint: disable=wildcard-import, unused-wildcard-import
-from .classes import nlmsgerr, nlmsghdr, rtattr
+from .classes import nlmsgerr, nlmsghdr, rtattr  # type: ignore [attr-defined]
 
 __all__ = (
     "nll_get_dump",
