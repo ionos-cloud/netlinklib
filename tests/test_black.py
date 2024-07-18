@@ -5,21 +5,19 @@ from re import match
 from subprocess import call
 from unittest import TestCase, skipUnless
 from pkg_resources import get_distribution, DistributionNotFound
+from . import no_less_than
 
-version = [0]
+black_version = "0.0"
 try:
-    version = [
-        int(i)
-        for i in match(r"([\d.]+)", get_distribution("black").version)[
-            0
-        ].split(".")
-    ]
+    vermatch = match(r"[\.\d]*", get_distribution("black").version)
+    if vermatch is not None:
+        black_version = vermatch.group()
 except DistributionNotFound:
     pass
 
 
 @skipUnless(
-    version >= [21, 10] and version < [24, 0], "black between 21.10 and 24.0"
+    no_less_than("24")(black_version), "black 24.0 and up is acceptable"
 )
 class BlackTest(TestCase):
     """Class for back formatting check"""

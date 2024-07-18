@@ -257,9 +257,7 @@ if __name__ == "__main__":
             typ = (
                 "bytes"
                 if fmtchar == "s" and dim
-                else "List[int]"
-                if dim
-                else "int"
+                else "List[int]" if dim else "int"
             )
             classfile += f"\t{name}: {typ}  # {dim} {fmtchar}\n"
         classfile += "\tdef from_bytes(self, inp: bytes) -> None:\n"
