@@ -7,16 +7,19 @@ from time import time
 from . import nll_get_links, nll_get_routes, nll_get_neigh
 
 
-class profiling:
+class profiling:  # pylint: disable=invalid-name
+    """Profiling context manager"""
+
     def __init__(self, name: str) -> None:
         self.name = name
 
     def __enter__(self) -> None:
+        # pylint: disable=attribute-defined-outside-init
         self.prof = Profile()
         self.before = time()
         self.prof.enable()
 
-    def __exit__(self, *_) -> Literal[False]:
+    def __exit__(self, *_: Any) -> Literal[False]:
         after = time()
         self.prof.create_stats()
         Stats(self.prof).strip_dirs().sort_stats("time").print_stats(8)

@@ -1,4 +1,5 @@
 """ Unittest for black formatting check """
+
 from glob import glob
 from re import match
 from subprocess import call
