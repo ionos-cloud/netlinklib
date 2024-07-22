@@ -13,6 +13,7 @@ To verify result against manually assembled defs file:
 
 """
 
+from collections import OrderedDict
 from contextlib import ExitStack
 from os import unlink
 from os.path import join
@@ -20,6 +21,7 @@ from struct import calcsize
 from sys import argv, stdout
 from tempfile import mkstemp
 from typing import ContextManager, IO, List, Literal, Tuple, Type
+from typing import Dict as DictT
 from typing import Literal as LiteralT
 from typing import Optional as OptionalT
 from types import TracebackType
@@ -121,6 +123,9 @@ enum.ignore(c_style_comment)
 typespec = Combine(
     Group(Optional(Literal("unsigned")) + stdtype) ^ identifier,
     adjacent=False,
+) ^ Combine(
+    Group(Literal("struct") + identifier),
+    adjacent=False,
 )
 struct_elem = Group(
     typespec("typespec")
@@ -161,7 +166,13 @@ TDICT = {
 }
 
 
-def _mkfmt(tspc, dim):
+def _mkfmt(tspc, dim, sizecache=None):
+    if tspc.startswith("struct"):
+        assert sizecache is not None, "No parse nested struct w/o size cache"
+        name = tspc[6:]
+        if name not in sizecache:
+            raise RuntimeError(f"Could not find the size of struct {name}")
+        return "s", sizecache[name]
     fmt, rev = TDICT[tspc]
     if fmt == "B" and dim:  # More than one byte: parse into as many `bytes`
         return "s", dim
@@ -186,7 +197,7 @@ def _slotname(nm):
 
 if __name__ == "__main__":
     names = set()
-    structs = {}
+    structs = OrderedDict()
     for infn in HEADERS:
         with mkstemp_n() as (defs, rest), open(join(INC, infn)) as inp:
             line = ""
@@ -234,9 +245,13 @@ if __name__ == "__main__":
     classfile += "from struct import unpack\n"
     classfile += "from typing import List\n"
     classfile += "from .datatypes import NllMsg, nlmsgerr"
+    structsize: DictT[str, int] = {}
     for clname, _elems in structs.items():
+        if clname == "nlmsgerr":  # Skip it, we define it by hand elsewhere
+            continue
         elems = tuple(
-            (_slotname(nm), *_mkfmt(tspc, dim)) for nm, tspc, dim in _elems
+            (_slotname(nm), *_mkfmt(tspc, dim, sizecache=structsize))
+            for nm, tspc, dim in _elems
         )
         classfile += f"\n\nclass {clname}(NllMsg):\n"
         classfile += f'\t"""struct {clname}"""\n'
@@ -246,12 +261,14 @@ if __name__ == "__main__":
             + ")\n"
         )
         packfmt = "=" + "".join(f"{dim}{fmt}" for _, fmt, dim in elems)
+        size = calcsize(packfmt)
+        structsize[clname] = size
         lside = " ".join(
             f"{'*' if fmt != 's' and dim else ''}self.{nm},"
             for nm, fmt, dim in elems
         )
         classfile += f'\tPACKFMT = "{packfmt}"\n'
-        classfile += f"\tSIZE = {calcsize(packfmt)}\n"
+        classfile += f"\tSIZE = {size}\n"
         classfile += "\tremainder: bytes\n"
         for name, fmtchar, dim in elems:
             typ = (
