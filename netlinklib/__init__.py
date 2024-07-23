@@ -5,4 +5,5 @@ from .api_link import *
 from .api_neigh import *
 from .api_qdisc import *
 from .api_route import *
+from .api_tclass import *
 from .api_mon import *
