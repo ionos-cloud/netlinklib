@@ -15,7 +15,7 @@ from .classes import tcmsg
 from .core import *
 from .datatypes import *
 from .defs import *
-from .parser_tclass import newtclass_parser
+from .parser_tc import newtclass_parser
 
 __all__ = (
     "nll_tclass_add",

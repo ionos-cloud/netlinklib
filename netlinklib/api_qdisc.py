@@ -15,7 +15,7 @@ from .classes import tcmsg
 from .core import *
 from .datatypes import *
 from .defs import *
-from .parser_qdisc import newqdisc_parser
+from .parser_tc import newqdisc_parser
 
 __all__ = (
     "nll_qdisc_add",
