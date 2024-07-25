@@ -121,7 +121,9 @@ enum = (
 enum.ignore(c_style_comment)
 
 typespec = Combine(
-    Group(Optional(Literal("unsigned")) + stdtype) ^ identifier,
+    Group(Optional(Literal("unsigned")) + stdtype)
+    ^ Group(Optional(Literal("signed")) + stdtype)
+    ^ identifier,
     adjacent=False,
 ) ^ Combine(
     Group(Literal("struct") + identifier),
@@ -152,14 +154,18 @@ TDICT = {
     "__be32": ("B", 4),
     "__u8": ("B", 0),
     "char": ("b", 0),
+    "signedchar": ("B", 0),
     "unsignedchar": ("B", 0),
     "__u16": ("H", 0),
     "short": ("h", 0),
+    "signedshort": ("H", 0),
     "unsignedshort": ("H", 0),
     "__s32": ("l", 0),
     "__s64": ("q", 0),
     "int": ("i", 0),
+    "signed": ("I", 0),
     "unsigned": ("I", 0),
+    "signedint": ("I", 0),
     "unsignedint": ("I", 0),
     "__u32": ("L", 0),
     "__u64": ("Q", 0),
