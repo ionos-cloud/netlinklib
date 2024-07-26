@@ -17,7 +17,15 @@ def parse_htb_glob(
 ) -> Dict[str, Union[int, str]]:
     """Parse tc_htb_glob, used for tc qdisc"""
     hglob = tc_htb_glob(data)
-    accum.update({"defcls": hglob.defcls})
+    accum.update(
+        {
+            "version": hglob.version,
+            "rate2quantum": hglob.rate2quantum,
+            "defcls": hglob.defcls,
+            "debug": hglob.debug,
+            "direct_pkts": hglob.direct_pkts,
+        }
+    )
     return accum
 
 
@@ -36,7 +44,12 @@ def parse_htb_opt(
 
 
 _opt_qisc_sel: Dict[str, RtaDesc] = {
-    "htb": {TCA_HTB_INIT: (parse_htb_glob, None)}
+    "htb": {TCA_HTB_INIT: (parse_htb_glob, None)},
+    "noqueue": {},
+    "bfifo": {},  # TODO add support for tc_prio_qopt that has an array
+    "pfifo": {},
+    "pfifo_head_drop": {},
+    "pfifo_fast": {},
 }
 
 _opt_class_sel: Dict[str, RtaDesc] = {
@@ -84,7 +97,7 @@ def _new_tc_parser(
         {
             TCA_KIND: (to_str, "kind"),
             TCA_OPTIONS: (parse_options_for_kind, selector),
-            # Maybe stats etc.?...
+            # TCA_STATS, TCA_STATS2, TCA_STATS_QUEUE
         },
     )
 
