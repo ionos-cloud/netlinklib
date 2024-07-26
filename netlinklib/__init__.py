@@ -3,7 +3,8 @@
 # pylint: disable=wildcard-import, unused-wildcard-import
 from .api_link import *
 from .api_neigh import *
-from .api_qdisc import *
+from .api_qdisc import *  # remove
 from .api_route import *
-from .api_tclass import *
+from .api_tclass import *  # remove
+from .api_tc import *
 from .api_mon import *
