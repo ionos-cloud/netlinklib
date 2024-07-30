@@ -158,7 +158,7 @@ TDICT = {
     "unsignedchar": ("B", 0),
     "__u16": ("H", 0),
     "short": ("h", 0),
-    "signedshort": ("H", 0),
+    "signedshort": ("h", 0),
     "unsignedshort": ("H", 0),
     "__s32": ("l", 0),
     "__s64": ("q", 0),
@@ -250,7 +250,7 @@ if __name__ == "__main__":
     classfile += "# pylint: disable-all\n\n"
     classfile += "from struct import unpack\n"
     classfile += "from typing import List\n"
-    classfile += "from .datatypes import NllMsg, nlmsgerr"
+    classfile += "from .datatypes import NllMsg, nlmsgerr, tc_prio_qopt"
     structsize: DictT[str, int] = {}
     for clname, _elems in structs.items():
         if clname == "nlmsgerr":  # Skip it, we define it by hand elsewhere

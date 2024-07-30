@@ -7,6 +7,7 @@ from typing import (
     Callable,
     Dict,
     Iterable,
+    List,
     Optional,
     Union,
 )
@@ -62,7 +63,7 @@ def nll_filter_get(
     priority: int,
     # estimator: Optional[tc_estimator] = None
     socket: Optional[socket] = None,  # pylint: disable=redefined-outer-name
-) -> Dict[str, Union[str, int]]:
+) -> Dict[str, Union[str, int, List[int]]]:
     """Get one filter entry"""
     msg = nll_transact(
         RTM_GETTFILTER,
