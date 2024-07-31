@@ -1,5 +1,6 @@
 """ Netlink dump implementation replacement for pyroute2 """
 
+from collections import defaultdict
 from functools import partial
 from socket import AF_UNSPEC, socket
 from typing import (
@@ -9,9 +10,16 @@ from typing import (
     Iterable,
     List,
     Optional,
+    Tuple,
+    Type,
     Union,
 )
-from .classes import tcmsg
+from .classes import (
+    tcmsg,
+    tc_htb_glob,
+    tc_fifo_qopt,
+    tc_multiq_qopt,
+)  # tc_prio_qopt
 
 # pylint: disable=wildcard-import, unused-wildcard-import
 from .core import *
@@ -22,7 +30,16 @@ from .parser_tc import newtfilter_parser, newqdisc_parser, newtclass_parser
 __all__ = (
     "nll_get_filters",
     "nll_get_qdiscs",
-    "nll_get_tclasses",
+    "nll_get_classes",
+    "nll_qdisc_add",
+    "nll_qdisc_change",
+    "nll_qdisc_replace",
+    "nll_qdisc_link",
+    "nll_qdisc_del",
+    "nll_class_add",
+    "nll_class_change",
+    "nll_class_replace",
+    "nll_class_del",
     "nll_filter_get",
     "nll_filter_add",
     "nll_filter_change",
@@ -96,6 +113,70 @@ def nll_filter_get(
     return newtfilter_parser(msg)
 
 
+def no_attrs(**kwargs: Any) -> Tuple[Tuple[int, bytes], ...]:
+    return ()
+
+
+def blank_struct(
+    structcls: Type[NllMsg],
+) -> Callable[..., Tuple[Tuple[int, bytes], ...]]:
+    return lambda: ((TCA_OPTIONS, structcls().bytes),)
+
+
+def htb_qdisc_attrs(
+    defcls: int = 0, rate2quantum: int = 10
+) -> Tuple[Tuple[int, bytes], ...]:
+    return (
+        (
+            TCA_OPTIONS,
+            pack_attr(
+                TCA_HTB_INIT,
+                tc_htb_glob(
+                    rate2quantum=rate2quantum, version=3, defcls=defcls
+                ).bytes,
+            ),
+        ),
+    )
+
+
+def fifo_qdisc_attrs(limit: int = 0) -> Tuple[Tuple[int, bytes], ...]:
+    return ((TCA_OPTIONS, tc_fifo_qopt(limit=limit).bytes),)
+
+
+def prio_qdisc_attrs(
+    multiq: bool = False,
+    bands: int = 3,
+    priomap: List[int] = [1, 2, 2, 2, 1, 2, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1],
+) -> Tuple[Tuple[int, bytes], ...]:
+    assert (
+        len(priomap) == TC_PRIO_MAX + 1
+    ), f"priomap must have {TC_PRIO_MAX+1} elements"
+    return (
+        (
+            TCA_OPTIONS,
+            tc_prio_qopt(bands=bands, priomap=priomap).bytes,
+            # Quoting from iproute2:
+            # /* This is the deprecated multiqueue interface */
+            # + (pack_attr(TCA_PRIO_MQ, b"") if multiq else b""),
+        ),
+    )
+
+
+_extra_attrs: Dict[
+    Tuple[int, str], Callable[..., Tuple[Tuple[int, bytes], ...]]
+] = defaultdict(
+    lambda: no_attrs,
+    {
+        (RTM_NEWQDISC, "htb"): htb_qdisc_attrs,
+        (RTM_NEWQDISC, "multiq"): blank_struct(tc_multiq_qopt),
+        (RTM_NEWQDISC, "bfifo"): fifo_qdisc_attrs,
+        (RTM_NEWQDISC, "pfifo"): fifo_qdisc_attrs,
+        (RTM_NEWQDISC, "pfifo_head_drop"): fifo_qdisc_attrs,
+        (RTM_NEWQDISC, "prio"): prio_qdisc_attrs,
+    },
+)
+
+
 def _nll_tc_op(
     msg_type: int,
     nlm_flags: int,
@@ -105,7 +186,8 @@ def _nll_tc_op(
     parent: Optional[int] = 0,
     # estimator: Optional[tc_estimator] = None
     socket: Optional[socket] = None,  # pylint: disable=redefined-outer-name
-) -> Optional[tcmsg]:
+    **kwargs: Any,
+) -> None:
     """Manipulate a TC object"""
     msg = nll_transact(
         msg_type,
@@ -116,25 +198,15 @@ def _nll_tc_op(
             tcm_handle=handle,
             tcm_parent=parent,
         ).bytes,
-        tuple(
-            (opt, fmt(val))  # type: ignore [no-untyped-call]
-            for opt, fmt, val in (
-                (TCA_KIND, lambda x: x.encode("ascii"), kind),
-                # (TCA_OPTIONS, nest((TCA_HTB_INIT, tc_htb_glob),
-                #                     (TCA_HTB_DIRECT_QLEN, int),
-                #                     (TCA_HTB_OFFLOAD, bool),))
-                # (TCA_RATE, tc_estimator),
-                # (TCA_INGRESS_BLOCK, u32 ingress block),
-                # (TCA_EGRESS_BLOCK, u32 egress block),
-            )
-            if val is not None
+        (
+            (TCA_KIND, kind.encode("ascii")),
+            *(_extra_attrs[(msg_type, kind)](**kwargs)),
         ),
         nlm_flags=nlm_flags,
         sk=socket,
     )
-    if msg is not None:
-        raise NllError(f"Unexpected response {tcmsg(msg)} for op {msg_type}")
-    return None
+    if msg:
+        raise NllError(f"Unexpected response {msg!r} for op {msg_type}")
 
 
 # Dumps
@@ -144,11 +216,24 @@ nll_get_qdiscs = partial(
 nll_get_filters = partial(
     _nll_tc_dump, RTM_GETTFILTER, RTM_NEWTFILTER, newtfilter_parser
 )
-nll_get_tclasses = partial(
+nll_get_classes = partial(
     _nll_tc_dump, RTM_GETTCLASS, RTM_NEWTCLASS, newtclass_parser
 )
 
 # Individual object ops
+nll_qdisc_add = partial(_nll_tc_op, RTM_NEWQDISC, NLM_F_CREATE | NLM_F_EXCL)
+nll_qdisc_change = partial(_nll_tc_op, RTM_NEWQDISC, 0)
+nll_qdisc_replace = partial(
+    _nll_tc_op, RTM_NEWQDISC, NLM_F_CREATE | NLM_F_REPLACE
+)
+nll_qdisc_link = partial(_nll_tc_op, RTM_NEWQDISC, NLM_F_REPLACE)
+nll_qdisc_del = partial(_nll_tc_op, RTM_DELQDISC, 0)
+
+nll_class_add = partial(_nll_tc_op, RTM_NEWTCLASS, NLM_F_CREATE | NLM_F_EXCL)
+nll_class_change = partial(_nll_tc_op, RTM_NEWTCLASS, 0)
+nll_class_replace = partial(_nll_tc_op, RTM_NEWTCLASS, NLM_F_CREATE)
+nll_class_del = partial(_nll_tc_op, RTM_DELTCLASS, 0)
+
 nll_filter_add = partial(_nll_tc_op, RTM_NEWTFILTER, NLM_F_CREATE | NLM_F_EXCL)
 nll_filter_change = partial(_nll_tc_op, RTM_NEWTFILTER, 0)
 nll_filter_replace = partial(_nll_tc_op, RTM_NEWTFILTER, NLM_F_CREATE)
