@@ -9,6 +9,7 @@ from typing import (
     Callable,
     Dict,
     Iterable,
+    Iterator,
     Optional,
     Sequence,
     Tuple,
@@ -22,11 +23,13 @@ from .defs import *  # pylint: disable=wildcard-import, unused-wildcard-import
 from .classes import nlmsgerr, nlmsghdr, rtattr  # type: ignore [attr-defined]
 
 __all__ = (
+    "iterate_rtalist",
     "nll_get_dump",
     "nll_handle_event",
     "nll_transact",
     "parse_rtalist",
     "pack_attr",
+    "to_true",
     "to_str",
     "to_int",
     "to_ipaddr",
@@ -224,6 +227,14 @@ def nll_handle_event(
 Accum = TypeVar("Accum")
 
 
+def to_true(
+    accum: Dict[str, Union[int, str]], data: bytes, key: str
+) -> Dict[str, Union[int, str]]:
+    """Accumulating function that does not check data"""
+    accum[key] = True
+    return accum
+
+
 def to_str(
     accum: Dict[str, Union[int, str]], data: bytes, key: str
 ) -> Dict[str, Union[int, str]]:
@@ -263,6 +274,22 @@ def to_ipaddr(
         address = ip_address(int.from_bytes(data, byteorder="big"))
     accum[key] = str(address)
     return accum
+
+
+def iterate_rtalist(data: bytes) -> Iterator[Tuple[int, bytes]]:
+    """Walk over a chunk with collection of RTAs and collect RTAs"""
+    while data:
+        try:
+            rta = rtattr(data)
+        except StructError as e:
+            raise NllError(e) from e
+        # if rta.rta_len < 4:
+        #     raise NllError(f"rta_len {rta.rta_len} < 4: {data.hex()}")
+        increment = (rta.rta_len + 4 - 1) & ~(4 - 1)
+        # if len(data) < increment:
+        #     raise NllError(f"data len {len(data)} < {increment}: {data.hex()}")
+        data = data[increment:]
+        yield rta.rta_type, rta.remainder[: rta.rta_len - rtattr.SIZE]
 
 
 def parse_rtalist(accum: Accum, data: bytes, sel: RtaDesc) -> Accum:
