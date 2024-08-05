@@ -18,6 +18,7 @@ from contextlib import ExitStack
 from os import unlink
 from os.path import join
 from struct import calcsize
+from subprocess import run, PIPE, STDOUT
 from sys import argv, stdout
 from tempfile import mkstemp
 from typing import ContextManager, IO, List, Literal, Tuple, Type
@@ -29,8 +30,8 @@ from black import format_file_contents, Mode
 from pyparsing import *
 from re import match
 
+CPP = "/usr/bin/cpp"
 INC = "/usr/include"
-
 HEADERS = (
     "linux/if_link.h",
     "linux/netlink.h",
@@ -39,10 +40,33 @@ HEADERS = (
     "linux/neighbour.h",
     "linux/pkt_sched.h",
     "linux/pkt_cls.h",
+    "linux/tc_act/tc_bpf.h",
+    "linux/tc_act/tc_connmark.h",
+    "linux/tc_act/tc_csum.h",
+    "linux/tc_act/tc_ct.h",
+    "linux/tc_act/tc_ctinfo.h",
+    "linux/tc_act/tc_defact.h",
+    "linux/tc_act/tc_gact.h",
+    "linux/tc_act/tc_gate.h",
+    "linux/tc_act/tc_ife.h",
+    "linux/tc_act/tc_mirred.h",
+    "linux/tc_act/tc_mpls.h",
+    "linux/tc_act/tc_nat.h",
+    "linux/tc_act/tc_pedit.h",
+    "linux/tc_act/tc_sample.h",
+    "linux/tc_act/tc_skbedit.h",
+    "linux/tc_act/tc_skbmod.h",
+    "linux/tc_act/tc_tunnel_key.h",
+    "linux/tc_act/tc_vlan.h",
+    "linux/tc_ematch/tc_em_cmp.h",
+    "linux/tc_ematch/tc_em_ipt.h",
+    "linux/tc_ematch/tc_em_meta.h",
+    "linux/tc_ematch/tc_em_nbyte.h",
+    "linux/tc_ematch/tc_em_text.h",
 )
 
 # Some tcm_* defines are different, and luckily not relevant to us
-EXCLUDE = "(^__)|(^tcm_block_index$)|(^tc_gen$)"
+EXCLUDE = "(^__)|(^tcm_block_index$)|(^tc_gen$)|(^tc_pedit$)"
 
 CCODE = (
     """#include <stdio.h>
@@ -108,6 +132,10 @@ LPAREN, RPAREN, LBRACE, RBRACE, LBRACKET, RBRACKET, EQ, COMMA, SEMICOLON = (
 arith_op = Word("+-*/", max=1)
 arith_elem = identifier ^ integer
 arith_expr = Group(arith_elem + (arith_op + arith_elem)[...])
+const_expr = Combine(
+    Group(integer + (arith_op + integer)[...]),
+    adjacent=False,
+)
 paren_expr = arith_expr ^ (LPAREN + arith_expr + RPAREN)
 enumValue = Group(identifier("name") + Optional(EQ + paren_expr("value")))
 enumList = Group(enumValue + (COMMA + enumValue)[...] + Optional(COMMA))
@@ -132,7 +160,7 @@ typespec = Combine(
 struct_elem = Group(
     typespec("typespec")
     + identifier("name")
-    + Optional(LBRACKET + integer("dim") + RBRACKET)
+    + Optional(LBRACKET + const_expr("dim") + RBRACKET)
     + SEMICOLON
 )
 struct_elist = Group(struct_elem[...])
@@ -232,11 +260,20 @@ if __name__ == "__main__":
                 for entry in item.names:
                     if not entry.name.startswith("__"):
                         names.add(entry.name)
-            rest.seek(0)
-            for item, start, stop in struct.scanString(rest.read()):
-                structs[item.name] = (
-                    (elem.name, elem.typespec, elem.dim) for elem in item.elist
-                )
+        process = run(
+            [CPP, join(INC, infn)],
+            stdout=PIPE,
+            stderr=STDOUT,
+            encoding="ascii",
+            check=True,
+        )
+        ccode = "\n".join(
+            filter(lambda s: not s.startswith("#"), process.stdout.split("\n"))
+        )
+        for item, start, stop in struct.scanString(ccode):
+            structs[item.name] = (
+                (elem.name, elem.typespec, elem.dim) for elem in item.elist
+            )
 
     with open("mkdefs.c", "w") as out:
         for hdr in HEADERS:
@@ -250,13 +287,16 @@ if __name__ == "__main__":
     classfile += "# pylint: disable-all\n\n"
     classfile += "from struct import unpack\n"
     classfile += "from typing import List\n"
-    classfile += "from .datatypes import NllMsg, nlmsgerr, tc_prio_qopt"
+    classfile += "from .datatypes import NllMsg, nlmsgerr"
     structsize: DictT[str, int] = {}
     for clname, _elems in structs.items():
         if clname == "nlmsgerr":  # Skip it, we define it by hand elsewhere
             continue
         elems = tuple(
-            (_slotname(nm), *_mkfmt(tspc, dim, sizecache=structsize))
+            (
+                _slotname(nm),
+                *_mkfmt(tspc, eval(dim) if dim else "", sizecache=structsize),
+            )
             for nm, tspc, dim in _elems
         )
         classfile += f"\n\nclass {clname}(NllMsg):\n"
@@ -270,7 +310,11 @@ if __name__ == "__main__":
         size = calcsize(packfmt)
         structsize[clname] = size
         lside = " ".join(
-            f"{'*' if fmt != 's' and dim else ''}self.{nm},"
+            " ".join(
+                [f"self.{nm}[{i}]," for i in range(dim)]
+                if fmt != "s" and dim
+                else [f"self.{nm},"]
+            )
             for nm, fmt, dim in elems
         )
         classfile += f'\tPACKFMT = "{packfmt}"\n'

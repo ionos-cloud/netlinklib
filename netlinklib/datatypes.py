@@ -12,7 +12,6 @@ __all__ = (
     "NllDumpInterrupted",
     "NllMsg",
     "nlmsgerr",
-    "tc_prio_qopt",
 )
 
 RtaDesc = Dict[int, Tuple[Callable[..., Any], Any]]
@@ -109,16 +108,3 @@ class nlmsgerr(NllMsg):
 
     def from_bytes(self, inp: bytes) -> None:
         (self.error,) = unpack(self.PACKFMT, inp)
-
-
-class tc_prio_qopt(NllMsg):
-    """TODO cover structs with arrays by automatic processing"""
-
-    __slots__ = ("bands", "priomap")
-    PACKFMT = f"=i{TC_PRIO_MAX+1}B"
-    SIZE = 4 + TC_PRIO_MAX + 1
-    bands: int  # i
-    priomap: List[int]  # {TC_PRIO_MAX+1}B
-
-    def from_bytes(self, inp: bytes) -> None:
-        (self.bands, *self.priomap) = unpack(self.PACKFMT, inp)

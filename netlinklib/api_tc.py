@@ -23,7 +23,8 @@ from .classes import (
     tc_fifo_qopt,
     tc_multiq_qopt,
     tc_ratespec,
-)  # tc_prio_qopt
+    tc_prio_qopt,
+)
 
 # pylint: disable=wildcard-import, unused-wildcard-import
 from .core import *

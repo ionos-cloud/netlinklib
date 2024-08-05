@@ -2,7 +2,7 @@
 
 from functools import partial
 from typing import Callable, Dict, List, Literal, Optional, Union
-from .classes import (  # type: ignore [attr-defined]
+from .classes import (
     tc_estimator,
     tc_htb_glob,
     tc_fifo_qopt,
@@ -65,7 +65,7 @@ def parse_prio_qopt(
     accum.update(
         {
             "bands": prio_qopt.bands,
-            "priomap": prio_qopt.priomap,
+            "priomap": list(prio_qopt.priomap),
         }
     )
     return accum
