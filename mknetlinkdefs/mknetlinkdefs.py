@@ -160,7 +160,7 @@ typespec = Combine(
 struct_elem = Group(
     typespec("typespec")
     + identifier("name")
-    + Optional(LBRACKET + const_expr("dim") + RBRACKET)
+    + Optional(LBRACKET + Optional(const_expr, "0")("dim") + RBRACKET)
     + SEMICOLON
 )
 struct_elist = Group(struct_elem[...])
@@ -206,7 +206,7 @@ def _mkfmt(tspc, dim, sizecache=None):
         name = tspc[6:]
         if name not in sizecache:
             raise RuntimeError(f"Could not find the size of struct {name}")
-        return "s", sizecache[name]
+        return "s", 0 if dim == 0 else sizecache[name]
     fmt, rev = TDICT[tspc]
     if fmt == "B" and dim:  # More than one byte: parse into as many `bytes`
         return "s", dim
@@ -306,7 +306,9 @@ if __name__ == "__main__":
             + ", ".join(f'"{nm}"' for nm, *_ in elems)
             + ")\n"
         )
-        packfmt = "=" + "".join(f"{dim}{fmt}" for _, fmt, dim in elems)
+        packfmt = "=" + "".join(
+            f"{dim}{fmt}" for _, fmt, dim in elems if dim != 0
+        )
         size = calcsize(packfmt)
         structsize[clname] = size
         lside = " ".join(
@@ -316,6 +318,7 @@ if __name__ == "__main__":
                 else [f"self.{nm},"]
             )
             for nm, fmt, dim in elems
+            if dim != 0
         )
         classfile += f'\tPACKFMT = "{packfmt}"\n'
         classfile += f"\tSIZE = {size}\n"
@@ -323,7 +326,7 @@ if __name__ == "__main__":
         for name, fmtchar, dim in elems:
             typ = (
                 "bytes"
-                if fmtchar == "s" and dim
+                if fmtchar == "s" and dim != ""
                 else "List[int]" if dim else "int"
             )
             classfile += f"\t{name}: {typ}  # {dim} {fmtchar}\n"
