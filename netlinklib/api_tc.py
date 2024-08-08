@@ -314,6 +314,30 @@ def htb_class_attrs(
     )
 
 
+def flow_filter_attrs(
+    chain: int = 0,
+    keymask: int = 0,
+    flow_mode: int = 0,
+    baseclass: int = 0,
+) -> Tuple[Tuple[int, bytes], ...]:
+    tcaopt = b"".join(
+        pack_attr(k, pack("=L", v))
+        for k, v in (
+            (TCA_FLOW_KEYS, keymask),
+            (TCA_FLOW_MODE, flow_mode),
+            (TCA_FLOW_BASECLASS, baseclass),
+        )
+        if v
+    )
+    return (((TCA_CHAIN, pack("=L", chain)),) if chain else ()) + (
+        ((TCA_OPTIONS, tcaopt),) if tcaopt else ()
+    )
+
+
+def u32_filter_attrs() -> Tuple[Tuple[int, bytes], ...]:
+    return ()
+
+
 _extra_attrs: Dict[
     Tuple[int, str], Callable[..., Tuple[Tuple[int, bytes], ...]]
 ] = defaultdict(
@@ -326,6 +350,8 @@ _extra_attrs: Dict[
         (RTM_NEWQDISC, "pfifo_head_drop"): fifo_qdisc_attrs,
         (RTM_NEWQDISC, "prio"): prio_qdisc_attrs,
         (RTM_NEWTCLASS, "htb"): htb_class_attrs,
+        (RTM_NEWTFILTER, "flow"): flow_filter_attrs,
+        (RTM_NEWTFILTER, "u32"): u32_filter_attrs,
     },
 )
 
@@ -335,8 +361,10 @@ def _nll_tc_op(
     nlm_flags: int,
     ifindex: int,
     kind: str,
-    handle: Optional[int] = 0,
-    parent: Optional[int] = 0,
+    handle: int = 0,
+    parent: int = 0,
+    priority: int = 0,
+    protocol: int = 0,
     # estimator: Optional[tc_estimator] = None
     socket: Optional[socket] = None,  # pylint: disable=redefined-outer-name
     **kwargs: Any,
@@ -350,6 +378,7 @@ def _nll_tc_op(
             tcm_ifindex=ifindex,
             tcm_handle=handle,
             tcm_parent=parent,
+            tcm_info=(priority << 16) | protocol,
         ).bytes,
         (
             (TCA_KIND, kind.encode("ascii")),
