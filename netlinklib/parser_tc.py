@@ -225,7 +225,8 @@ def _new_tc_parser(
             "family": tcm.tcm_family,
             "handle": tcm.tcm_handle,
             "parent": tcm.tcm_parent,
-            "info": tcm.tcm_info,
+            "protocol": tcm.tcm_info & 0xFFFF,
+            "priority": tcm.tcm_info >> 16,
         },
         tcm.remainder,
         {
