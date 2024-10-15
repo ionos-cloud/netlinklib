@@ -38,6 +38,8 @@ HEADERS = (
     "linux/genetlink.h",
     "linux/rtnetlink.h",
     "linux/neighbour.h",
+    # "linux/ethtool.h",
+    # "linux/ethtool_netlink.h",
     "linux/pkt_sched.h",
     "linux/pkt_cls.h",
     "linux/tc_act/tc_bpf.h",
@@ -98,7 +100,7 @@ class mkstemp_n:
         with ExitStack() as stk:
             for fd, _ in self.temps:
                 files.append(
-                    stk.enter_context(open(fd, "r+", encoding="ascii"))
+                    stk.enter_context(open(fd, "r+", encoding="utf-8"))
                 )
                 self.undo = stk.pop_all()
         return tuple(files)
