@@ -327,7 +327,7 @@ def flow_filter_attrs(
             (TCA_FLOW_MODE, flow_mode),
             (TCA_FLOW_BASECLASS, baseclass),
         )
-        if v
+        if v or k == TCA_FLOW_MODE  # iproute2 always adds flow mode
     )
     return (((TCA_CHAIN, pack("=L", chain)),) if chain else ()) + (
         ((TCA_OPTIONS, tcaopt),) if tcaopt else ()
