@@ -1,6 +1,6 @@
 """ Netlink dump implementation replacement for pyroute2 """
 
-from typing import Callable, Dict, Union
+from typing import Callable, Dict, Union, cast
 from .classes import ifinfomsg
 
 # pylint: disable=wildcard-import, unused-wildcard-import
@@ -13,13 +13,14 @@ __all__ = ("newlink_parser",)
 IFF_UP = 1
 
 
-def parse_rtalist_if_vrf(
-    accum: Dict[str, Union[int, str]], data: bytes, sel: RtaDesc
+def parse_rtalist_by_kind(
+    accum: Dict[str, Union[int, str]], data: bytes, descs: Dict[str, RtaDesc]
 ) -> Dict[str, Union[int, str]]:
     """Parse KRT only if kind == vrf has been already put into accum"""
-    if accum.get("kind", None) == "vrf":
-        return parse_rtalist(accum, data, sel)
-    return accum
+    sel = descs.get(cast(str, accum.get("kind")))
+    if sel is None:
+        return accum
+    return parse_rtalist(accum, data, sel)
 
 
 _newlink_sel: RtaDesc = {
@@ -31,9 +32,18 @@ _newlink_sel: RtaDesc = {
         {
             IFLA_INFO_KIND: (to_str, "kind"),
             IFLA_INFO_DATA: (
-                parse_rtalist_if_vrf,
+                parse_rtalist_by_kind,
                 {
-                    IFLA_VRF_TABLE: (to_int, "krt"),
+                    "vrf": {
+                        IFLA_VRF_TABLE: (to_int, "krt"),
+                    },
+                    "erspan": {
+                        IFLA_GRE_ERSPAN_VER: (to_int, "erspan_ver"),
+                        IFLA_GRE_IKEY: (to_int_be, "ikey"),
+                        IFLA_GRE_OKEY: (to_int_be, "okey"),
+                        IFLA_GRE_LOCAL: (to_ipaddr, "local"),
+                        IFLA_GRE_REMOTE: (to_ipaddr, "remote"),
+                    },
                 },
             ),
         },
