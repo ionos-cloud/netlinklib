@@ -74,11 +74,11 @@ assert U32t is not None, "What integer type has bytesize 4 on this system?!"
 def _nll_tc_dump(
     msg_type: int,
     msg_resp: int,
-    parser: Callable[[bytes], Dict[str, Union[str, int]]],
+    parser: Callable[[bytes], Dict[str, Union[str, int, List[int]]]],
     ifindex: int,
     socket: Optional[socket] = None,  # pylint: disable=redefined-outer-name
     **kwargs: Any,
-) -> Iterable[Dict[str, Union[str, int]]]:
+) -> Iterable[Dict[str, Union[str, int, List[int]]]]:
     """Public function to get all ND cache"""
     return nll_get_dump(
         msg_type,

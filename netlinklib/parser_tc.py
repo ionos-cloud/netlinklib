@@ -173,7 +173,7 @@ _opt_qisc_sel: Dict[str, Union[RtaDesc, QoptParser]] = {
     "pfifo_fast": parse_prio_qopt,
 }
 
-_opt_class_sel: Dict[str, RtaDesc] = {
+_opt_class_sel: Dict[str, Union[RtaDesc, QoptParser]] = {
     "htb": {
         TCA_HTB_PARMS: (parse_htb_opt, None),
         TCA_HTB_RATE64: (to_int, "rate64"),
@@ -181,7 +181,7 @@ _opt_class_sel: Dict[str, RtaDesc] = {
     }
 }
 
-_opt_filter_sel: Dict[str, RtaDesc] = {
+_opt_filter_sel: Dict[str, Union[RtaDesc, QoptParser]] = {
     "flow": {
         TCA_FLOW_KEYS: (to_int, "keymask"),
         TCA_FLOW_MODE: (to_int, "flow_mode"),
@@ -215,7 +215,7 @@ def parse_options_for_kind(
 
 
 def _new_tc_parser(
-    selector: RtaDesc, message: bytes
+    selector: Dict[str, Union[RtaDesc, QoptParser]], message: bytes
 ) -> Dict[str, Union[str, int, List[int]]]:
     """Parser for all TC new* messages, to use with different selectors"""
     tcm = tcmsg(message)
