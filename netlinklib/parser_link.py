@@ -1,6 +1,6 @@
 """ Netlink dump implementation replacement for pyroute2 """
 
-from typing import Callable, Dict, Union
+from typing import Callable, Dict, Optional, Union, cast
 from .classes import ifinfomsg
 
 # pylint: disable=wildcard-import, unused-wildcard-import
@@ -8,22 +8,23 @@ from .core import *
 from .datatypes import *
 from .defs import *
 
-__all__ = ("newlink_parser",)
+__all__ = ("newlink_parser", "ifindex_parser")
 
 IFF_UP = 1
 
 
-def parse_rtalist_if_vrf(
-    accum: Dict[str, Union[int, str]], data: bytes, sel: RtaDesc
+def parse_rtalist_by_kind(
+    accum: Dict[str, Union[int, str]], data: bytes, descs: Dict[str, RtaDesc]
 ) -> Dict[str, Union[int, str]]:
     """Parse KRT only if kind == vrf has been already put into accum"""
-    if accum.get("kind", None) == "vrf":
-        return parse_rtalist(accum, data, sel)
-    return accum
+    sel = descs.get(cast(str, accum.get("kind")))
+    if sel is None:
+        return accum
+    return parse_rtalist(accum, data, sel)
 
 
 _newlink_sel: RtaDesc = {
-    IFLA_IFNAME: (to_str, "name"),
+    IFLA_IFNAME: (to_str, "ifname"),
     IFLA_LINK: (to_int, "peer"),
     IFLA_MASTER: (to_int, "master"),
     IFLA_LINKINFO: (
@@ -31,9 +32,19 @@ _newlink_sel: RtaDesc = {
         {
             IFLA_INFO_KIND: (to_str, "kind"),
             IFLA_INFO_DATA: (
-                parse_rtalist_if_vrf,
+                parse_rtalist_by_kind,
                 {
-                    IFLA_VRF_TABLE: (to_int, "krt"),
+                    "vrf": {
+                        IFLA_VRF_TABLE: (to_int, "krt"),
+                    },
+                    "erspan": {
+                        IFLA_GRE_ERSPAN_VER: (to_int, "erspan_ver"),
+                        IFLA_GRE_IKEY: (to_int_be, "gre_ikey"),
+                        IFLA_GRE_OKEY: (to_int_be, "gre_okey"),
+                        IFLA_GRE_LOCAL: (to_ipaddr, "gre_local"),
+                        IFLA_GRE_REMOTE: (to_ipaddr, "gre_remote"),
+                        IFLA_GRE_LINK: (to_int, "gre_link"),
+                    },
                 },
             ),
         },
@@ -64,3 +75,9 @@ def newlink_parser(
         )
 
     return _newlink_parser
+
+
+def ifindex_parser(message: bytes) -> Optional[int]:
+    if message:
+        return ifinfomsg(message).ifi_index
+    return None
