@@ -1,5 +1,6 @@
 """ Netlink dump implementation core functions """
 
+from functools import partial
 from os import getpid, strerror
 from socket import AF_NETLINK, NETLINK_ROUTE, SOCK_RAW, socket
 from struct import error as StructError
@@ -10,6 +11,7 @@ from typing import (
     Dict,
     Iterable,
     Iterator,
+    Literal,
     Optional,
     Sequence,
     Tuple,
@@ -32,6 +34,7 @@ __all__ = (
     "to_true",
     "to_str",
     "to_int",
+    "to_int_be",
     "to_ipaddr",
     "to_mac",
 )
@@ -251,12 +254,19 @@ def to_mac(
     return accum
 
 
-def to_int(
-    accum: Dict[str, Union[int, str]], data: bytes, key: str
+def _to_int(
+    accum: Dict[str, Union[int, str]],
+    data: bytes,
+    key: str,
+    byteorder: Literal["little", "big"],
 ) -> Dict[str, Union[int, str]]:
     """Accumulating function that saves an integer"""
     accum[key] = int.from_bytes(data, byteorder=byteorder)
     return accum
+
+
+to_int = partial(_to_int, byteorder=byteorder)
+to_int_be = partial(_to_int, byteorder="big")
 
 
 def to_ipaddr(
