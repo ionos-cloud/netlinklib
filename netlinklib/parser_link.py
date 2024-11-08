@@ -24,7 +24,7 @@ def parse_rtalist_by_kind(
 
 
 _newlink_sel: RtaDesc = {
-    IFLA_IFNAME: (to_str, "ifname"),
+    IFLA_IFNAME: (to_str, "name"),
     IFLA_LINK: (to_int, "peer"),
     IFLA_MASTER: (to_int, "master"),
     IFLA_LINKINFO: (

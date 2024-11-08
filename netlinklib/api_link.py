@@ -79,7 +79,7 @@ def _nll_link(
     msg_type: int,
     ifindex: int = 0,
     up: bool = False,
-    ifname: Optional[str] = None,
+    name: Optional[str] = None,
     kind: Optional[str] = None,
     peer: Optional[int] = None,
     master: Optional[int] = None,
@@ -121,7 +121,7 @@ def _nll_link(
         tuple(
             (opt, optval)
             for opt, optval in (
-                (IFLA_IFNAME, maybe(_str)(ifname)),
+                (IFLA_IFNAME, maybe(_str)(name)),
                 (IFLA_LINK, maybe(_int)(peer)),
                 (IFLA_MASTER, maybe(_int)(master)),
                 (IFLA_LINKINFO, maybe(_bytes)(link_info)),
