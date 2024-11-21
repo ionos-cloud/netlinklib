@@ -1,3 +1,35 @@
+netlinklib (1.1.0) stable; urgency=medium
+
+  [ Eugene Crosser ]
+  * README: fix typos
+  * mknetlinkdefs: include traffic control definitions
+  * Restructure frontend into multiple files
+  * test: switch to black >= 24
+  * qdisc query, initial implementation
+  * mknetlinkdefs: Handle nested structs
+  * Support "signed" in struct fields
+  * WIP implement some TC operations
+  * WIP on TC parser
+  * WIP: all TC dumps supported
+  * Complete TC GET and DUMP operations
+  * TC: support tc_prio_qopt sctructure that has array
+  * TC: support all(?) qdisc operations
+  * TC: implement new_class for htb
+  * mknetlinkdefs: run structs through cpp
+  * Do not parse vararray at the end of structs
+  * Introduce `dict` property to NllMsg
+  * Implement tc filter dump
+  * mknetlinkdefs: use encoding="utf-8" because.
+  * TC: separate tcm_info into protocol and priority
+  * TC: construct attrs for flow filter
+  * Use FLOW_MODE (for some reason)
+  * Adjust type annotations for mypy 1.11.1
+
+  [ Michael Dickensheets ]
+  * link: support creation/deletion of type erspan links
+
+ -- Michael Dickensheets <michael.dickensheets@ionos.com>  Thu, 21 Nov 2024 14:27:27 +0100
+
 netlinklib (1.0.3) stable; urgency=medium
 
   * UNRELEASED
