@@ -334,6 +334,25 @@ def flow_filter_attrs(
     )
 
 
+def bpf_filter_attrs(
+    fd: int = 0,
+    name: str = "",
+    flags: int = 0,
+) -> Tuple[Tuple[int, bytes], ...]:
+    assert fd > 0
+    tcaopt = b"".join(
+        pack_attr(
+            k, v.encode("ascii") if isinstance(v, str) else pack("=L", v)
+        )
+        for k, v in (
+            (TCA_BPF_FD, fd),
+            (TCA_BPF_NAME, name),
+            (TCA_BPF_FLAGS, flags),
+        )
+    )
+    return ((TCA_OPTIONS, tcaopt),) if tcaopt else ()
+
+
 def u32_filter_attrs() -> Tuple[Tuple[int, bytes], ...]:
     return ()
 
@@ -351,6 +370,7 @@ _extra_attrs: Dict[
         (RTM_NEWQDISC, "prio"): prio_qdisc_attrs,
         (RTM_NEWTCLASS, "htb"): htb_class_attrs,
         (RTM_NEWTFILTER, "flow"): flow_filter_attrs,
+        (RTM_NEWTFILTER, "bpf"): bpf_filter_attrs,
         (RTM_NEWTFILTER, "u32"): u32_filter_attrs,
     },
 )
