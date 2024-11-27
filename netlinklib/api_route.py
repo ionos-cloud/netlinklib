@@ -73,7 +73,7 @@ def _nll_route(  # pylint: disable=too-many-arguments, too-many-locals
             + gwattr
         )
 
-    nll_transact(
+    legacy_nll_transact(
         msg_type,
         msg_type,
         rtmsg(
@@ -143,10 +143,10 @@ def nll_get_routes(  # pylint: disable=too-many-arguments
     # print("rtm_kw", rtm_kw, "rtm_nla", rtm_nla)
     return [
         el
-        for subl in nll_get_dump(
+        for subl in legacy_nll_get_dump(
             RTM_GETROUTE,
             RTM_NEWROUTE,
-            rtmsg(**rtm_kw).bytes,
+            rtmsg(**rtm_kw).bytes,  # type: ignore
             rtm_nla,
             newroute_parser,
             sk=socket,

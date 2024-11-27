@@ -30,7 +30,7 @@ def nll_get_neigh(
     **kwargs: Any,
 ) -> Iterable[Dict[str, Union[str, int]]]:
     """Public function to get all ND cache"""
-    return nll_get_dump(
+    return legacy_nll_get_dump(
         RTM_GETNEIGH,
         RTM_NEWNEIGH,
         ndmsg(ndm_family=family).bytes,

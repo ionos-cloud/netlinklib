@@ -80,7 +80,7 @@ def _nll_tc_dump(
     **kwargs: Any,
 ) -> Iterable[Dict[str, Union[str, int, List[int]]]]:
     """Public function to get all ND cache"""
-    return nll_get_dump(
+    return legacy_nll_get_dump(
         msg_type,
         msg_resp,
         tcmsg(
@@ -105,7 +105,7 @@ def nll_filter_get(
     socket: Optional[socket] = None,  # pylint: disable=redefined-outer-name
 ) -> Dict[str, Union[str, int, List[int]]]:
     """Get one filter entry"""
-    msg = nll_transact(
+    msg = legacy_nll_transact(
         RTM_GETTFILTER,
         RTM_NEWTFILTER,
         tcmsg(
@@ -370,7 +370,7 @@ def _nll_tc_op(
     **kwargs: Any,
 ) -> None:
     """Manipulate a TC object"""
-    msg = nll_transact(
+    msg = legacy_nll_transact(
         msg_type,
         msg_type,
         tcmsg(

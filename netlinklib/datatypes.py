@@ -8,7 +8,10 @@ from typing import (
     Dict,
     get_type_hints,
     List,
+    Optional,
+    Sequence,
     Tuple,
+    TypeVar,
     Union,
 )
 
@@ -26,6 +29,9 @@ __all__ = (
 RtaDesc = Dict[int, Tuple[Callable[..., Any], Any]]
 
 
+Accum = TypeVar("Accum")
+
+
 class NllException(BaseException):
     """Any exception originating from here"""
 
@@ -38,6 +44,10 @@ class NllDumpInterrupted(NllException):
     """ "Dump interrupted" condition reported by the kernel"""
 
 
+class StopParsing(Exception):
+    pass
+
+
 class NllMsg:
     """Encoder / decoder for a `struct` used in netlink messages"""
 
@@ -45,7 +55,13 @@ class NllMsg:
     PACKFMT: ClassVar[str]
     SIZE: ClassVar[int]
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
+    def __init__(
+        self,
+        *args: Any,
+        setters: Optional[Dict[str, Callable[[Accum, Any], Accum]]] = None,
+        **kwargs: Any,
+    ) -> None:
+        self.setters = setters
         try:  # Faster than checking for len(args), and this is a bottleneck
             self.from_bytes(args[0][: self.SIZE])
             self.remainder = args[0][self.SIZE :]
@@ -88,6 +104,20 @@ class NllMsg:
         self, inp: bytes
     ) -> None:  # pylint: disable=unused-argument
         """Parser for binary messages"""
+
+    @staticmethod
+    def _noop(accum: Accum, *_: Any) -> Accum:
+        return accum
+
+    def parse(self, accum: Accum, data: bytes) -> Accum:
+        if self.setters is None:
+            return accum
+        fields: Tuple[str, ...] = self.__slots__[1:]
+        for k, v in zip(fields, unpack(self.PACKFMT, data[: self.SIZE])):
+            if (attr := getattr(self, k)) and attr != v:
+                raise StopParsing
+            accum = self.setters.get(k, self._noop)(accum, v)  # type: ignore
+        return accum
 
     @property
     def bytes(self) -> bytes:

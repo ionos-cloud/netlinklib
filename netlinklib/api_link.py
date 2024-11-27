@@ -122,7 +122,7 @@ def _nll_link(
         }
         if kind in link_info_attrs:
             link_info += pack_attr(IFLA_INFO_DATA, link_info_attrs[kind])
-    ret = nll_transact(
+    ret = legacy_nll_transact(
         msg_type,
         msg_type,
         ifinfomsg(ifi_index=ifindex, ifi_flags=IFF_UP if up else 0).bytes,
@@ -153,7 +153,7 @@ def nll_get_links(
     nameonly: bool = False,
 ) -> Iterable[Dict[str, Union[str, int]]]:
     """Public function to get all interfaces"""
-    return nll_get_dump(
+    return legacy_nll_get_dump(
         RTM_GETLINK,
         RTM_NEWLINK,
         ifinfomsg().bytes,
@@ -169,7 +169,7 @@ def nll_link_lookup(
 ) -> Optional[int]:
     """Find ifindex by name"""
     try:
-        msg = nll_transact(
+        msg = legacy_nll_transact(
             RTM_GETLINK,
             RTM_NEWLINK,
             ifinfomsg().bytes,

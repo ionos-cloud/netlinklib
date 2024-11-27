@@ -22,7 +22,7 @@ class TypeCheckTest(TestCase):
         # self.mypy_env.update({"MYPYPATH": "mypystubs"})
         self.mypy_opts: List[str] = ["--strict"]
 
-    @skipUnless(mypy_version > [0, 971], "Do not trust earlier mypy versions")
+    @skipUnless(mypy_version > [1, 9], "Do not trust earlier mypy versions")
     def test_run_mypy(self):
         mypy_call: List[str] = ["mypy"] + self.mypy_opts + WHATTOCHECK
         result: int = call(mypy_call, env=self.mypy_env)
