@@ -353,6 +353,68 @@ def bpf_filter_attrs(
     return ((TCA_OPTIONS, tcaopt),) if tcaopt else ()
 
 
+def _get_skbedit_parms(**kwargs: Any) -> Dict[str, List[List[Any]]:
+    ret = {"attrs": []}
+    attrs_map = (
+        ("priority", TCA_SKBEDIT_PRIORITY),
+        ("queue", TCA_SKBEDIT_QUEUE_MAPPING),
+        ("mark", TCA_SKBEDIT_MARK),
+        ("mask", TCA_SKBEDIT_MASK),
+    )
+    parms = {}
+    parms["action"] = 3  # TC_ACT_PIPE
+    ret["attrs"].append([TCA_SKBEDIT_PARMS, parms])
+    for k, v in attrs_map:
+        r = kwarg.get(k, None)
+        if r is not None:
+            ret["attrs"].append([v, r])
+    return ret
+
+
+def matchall_filter_attrs(
+    **kwargs: Any,
+) -> Tuple[Tuple[int, bytes], ...]:
+    attrs = [
+        (
+            TCA_MATCHALL_ACT,
+            {
+                "attrs": [
+                    [TCA_ACT_KIND, action.get("kind")],
+                    [
+                        TCA_ACT_OPTIONS,
+                        {
+                            "attrs": [
+                                TCA_ACT_PRIO_1,
+                                {
+                                    "attrs": [
+                                        [TCA_ACT_KIND, "skbedit"],
+                                        [
+                                            TCA_ACT_OPTIONS,
+                                            get_skbedit_parms(kwargs),
+                                        ],
+                                    ]
+                                },
+                            ],
+                        },
+                    ],
+                ]
+            },
+        ),
+    ]
+
+    tcaopt = b"".join(
+        pack_attr(
+            k, v.encode("ascii") if isinstance(v, str) else pack("=L", v)
+        )
+        for k, v in (
+            (TCA_BPF_FD, fd),
+            (TCA_BPF_NAME, name),
+            (TCA_BPF_FLAGS, flags),
+        )
+    )
+    return ((TCA_OPTIONS, tcaopt),) if tcaopt else ()
+
+
 def u32_filter_attrs() -> Tuple[Tuple[int, bytes], ...]:
     return ()
 
@@ -371,6 +433,7 @@ _extra_attrs: Dict[
         (RTM_NEWTCLASS, "htb"): htb_class_attrs,
         (RTM_NEWTFILTER, "flow"): flow_filter_attrs,
         (RTM_NEWTFILTER, "bpf"): bpf_filter_attrs,
+        (RTM_NEWTFILTER, "matchall"): matchall_filter_attrs,
         (RTM_NEWTFILTER, "u32"): u32_filter_attrs,
     },
 )
