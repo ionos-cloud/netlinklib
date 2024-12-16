@@ -15,7 +15,7 @@ To verify result against manually assembled defs file:
 
 from collections import OrderedDict
 from contextlib import ExitStack
-from os import unlink
+from os import getenv, unlink
 from os.path import join
 from struct import calcsize
 from subprocess import run, PIPE, STDOUT
@@ -243,9 +243,14 @@ def _slotname(nm):
 
 
 if __name__ == "__main__":
+    extra_headers = tuple(
+        []
+        if (envval := getenv("NLL_EXTRA_HEADERS")) is None
+        else envval.split(",")
+    )
     names = set()
     structs = OrderedDict()
-    for infn in HEADERS + DEF_ONLY_HEADERS:
+    for infn in HEADERS + DEF_ONLY_HEADERS + extra_headers:
         with mkstemp_n() as (defs, rest), open(join(INC, infn)) as inp:
             line = ""
             for rline in inp.readlines():
@@ -276,7 +281,7 @@ if __name__ == "__main__":
 
     with open("mkdefs.c", "w") as out:
         print(CCODE[0], file=out)
-        for hdr in HEADERS + DEF_ONLY_HEADERS:
+        for hdr in HEADERS + DEF_ONLY_HEADERS + extra_headers:
             print(f"#include <{hdr}>", file=out)
         print(CCODE[1], file=out)
         for name in names:
