@@ -2,9 +2,9 @@
 
 from abc import abstractmethod
 from collections import ChainMap
-from functools import partial
+from functools import partial, reduce
 from os import getpid, strerror
-from socket import AF_NETLINK, NETLINK_ROUTE, SOCK_RAW, socket
+from socket import AF_NETLINK, NETLINK_ROUTE, SOCK_NONBLOCK, SOCK_RAW, socket
 from struct import error as StructError, pack
 from sys import byteorder
 from typing import (
@@ -39,6 +39,7 @@ __all__ = (
     "NlaBe32",
     "NlaInt",
     "NlaIp",
+    "NlaList",
     "NlaNest",
     "NlaStruct",
     "NlaStr",
@@ -46,7 +47,8 @@ __all__ = (
     "legacy_nll_get_dump",
     "legacy_nll_transact",
     "nll_get_dump",
-    "nll_handle_event",
+    "nll_listen",
+    "nll_make_event_listener",
     "nll_transact",
     "parse_rtalist",
     "pack_attr",
@@ -231,20 +233,6 @@ def legacy_nll_transact(
                 owns, typ, expect, rtgenmsg, attrs, nlm_flags
             )
     return _legacy_nll_transact(sk, typ, expect, rtgenmsg, attrs, nlm_flags)
-
-
-def nll_handle_event(
-    parsers: Dict[int, Callable[[bytes], Any]],
-    sk: socket,
-) -> Iterable[Tuple[int, Any]]:
-    """
-    Fetch and parse messages of given types.
-    """
-    for msg_type, _, _, _, message in _messages(sk):
-        try:
-            yield (msg_type, parsers[msg_type](message))
-        except KeyError:
-            raise NllError(f"No parser for message type {msg_type}")
 
 
 #######################################################################
@@ -456,6 +444,49 @@ def nll_transact(
 ############################################################
 
 
+def nll_make_event_listener(*groups: int, block: bool = False) -> socket:
+    """
+    Create socket bound to given groups, for use with `nll_get_events`.
+    Sockets created with `block=False` will only produce output
+    if a read is ready and should be used with select/poll.
+    Sockets created with `block=True` will produce an endless
+    blocking iterator which yields events as they become ready.
+    """
+    sock = socket(
+        AF_NETLINK,
+        SOCK_RAW | (0 if block else SOCK_NONBLOCK),
+        NETLINK_ROUTE,
+    )
+    sock.bind((0, reduce(lambda x, y: x | y, groups)))
+    return sock
+
+
+def nll_listen(
+    accum_parser: Dict[
+        int,
+        Tuple[
+            Callable[[], Accum],
+            Callable[[Accum, bytes], Accum],
+        ],
+    ],
+    sk: socket,
+) -> Iterable[Tuple[int, Any]]:
+    """
+    Fetch and parse messages of given types.
+    `sk` should already be bound to correct groups.
+    See `nll_make_event_listener.`
+    """
+    for msg_type, _, _, _, message in _messages(sk):
+        try:
+            accum, parser = accum_parser[msg_type]
+        except KeyError:
+            raise NllError(f"No parser for message type {msg_type}")
+        yield (msg_type, parser(accum(), message))
+
+
+############################################################
+
+
 T = TypeVar("T")
 
 
@@ -625,7 +656,10 @@ class _NlaNest(NlaType):
         super().__init__(**kwargs)
 
     def __repr__(self) -> str:
-        return f"({','.join(nla.__repr__() for nla in self.nlas)})"
+        return (
+            f"{self.__class__.__name__}"
+            f"({','.join(nla.__repr__() for nla in self.nlas)})"
+        )
 
     def to_bytes(self) -> bytes:
         return b"".join(nla.to_bytes() for nla in self.nlas)
@@ -702,21 +736,28 @@ class NlaStructRta(NlaAttr, NlaStruct):
         return super().to_bytes()
 
 
-class NlaStructList(NlaAttr):
+class NlaList(NlaAttr):
     """A list of struct+nested attr objects."""
 
-    def __init__(self, tag: int, *structs: NlaStruct) -> None:
+    def __init__(
+        self,
+        tag: int,
+        *structs: NlaStruct,
+        setter: Optional[Callable[[Accum, T], Accum]] = None,
+    ) -> None:
         # Struct lists should probably contain all the same type of struct
-        assert len(set(type(s.struct) for s in structs)) == 1
+        assert len(set(type(s.struct) for s in structs)) < 2
         self.structs = structs
+        self.setter = setter
         super().__init__(tag=tag)
 
     def _bytes(self) -> bytes:
         return b"".join(s.to_bytes() for s in self.structs)
 
+    def to_bytes(self) -> bytes:
+        if self.structs:
+            return super().to_bytes()
+        return b""
+
     def parse(self, accum: Accum, data: bytes) -> Accum:
-        for struct in self.structs:
-            size = struct.get_size(data)
-            accum = struct.parse(accum, data[:size])
-            data = data[size:]
-        return accum
+        return self.setter(accum, data) if self.setter else accum  # type: ignore
