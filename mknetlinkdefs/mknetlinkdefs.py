@@ -38,6 +38,7 @@ HEADERS = (
     "linux/genetlink.h",
     "linux/rtnetlink.h",
     "linux/neighbour.h",
+    "linux/veth.h",
     # "linux/ethtool.h",
     # "linux/ethtool_netlink.h",
     "linux/pkt_sched.h",
