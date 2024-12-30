@@ -620,12 +620,7 @@ class NlaIp(_NlaScalar[Union[IPv4Address, IPv6Address]]):
         size = len(data)
         if size == 4:
             return IPv4Address(int.from_bytes(data, byteorder="big"))
-        elif size == 16:
-            return IPv6Address(int.from_bytes(data, byteorder="big"))
-        raise ValueError(
-            f"Received incorrect number of bytes "
-            "({size}) for NlaIpaddr: {data}"
-        )
+        return IPv6Address(int.from_bytes(data, byteorder="big"))
 
 
 class _NlaNest(NlaType):

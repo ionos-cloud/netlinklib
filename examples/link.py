@@ -1,5 +1,6 @@
 from functools import partial
-from typing import Optional, Sequence, TypeVar
+from socket import socket
+from typing import Any, Callable, Optional, Sequence, Tuple, TypeVar
 
 from netlinklib import *
 
