@@ -709,6 +709,12 @@ class NlaStruct(NlaType):
         self.nlas = _NlaNest(*nlas)
         super().__init__(**kwargs)
 
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}"
+            f"({self.struct.__repr__()}, {self.nlas.__repr__()})"
+        )
+
     def to_bytes(self) -> bytes:
         return self.struct.bytes + self.nlas.to_bytes()
 
