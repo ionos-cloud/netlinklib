@@ -59,9 +59,11 @@ class NllMsg:
         self,
         *args: Any,
         setters: Optional[Dict[str, Callable[[Accum, Any], Accum]]] = None,
+        filters: Optional[Dict[str, Callable[[Any], bool]]] = None,
         **kwargs: Any,
     ) -> None:
         self.setters = setters
+        self.filters = {} if filters is None else filters
         try:  # Faster than checking for len(args), and this is a bottleneck
             self.from_bytes(args[0][: self.SIZE])
             self.remainder = args[0][self.SIZE :]
@@ -74,6 +76,10 @@ class NllMsg:
                 continue
             try:
                 setattr(self, attr, kwargs[attr])
+                # If user provides a value, use it as
+                # a default filter during parsing
+                if attr not in self.filters:
+                    self.filters[attr] = lambda x: x == kwargs[attr]
             except KeyError as e:
                 if hints[attr] is int:
                     setattr(self, attr, 0)
@@ -105,18 +111,15 @@ class NllMsg:
     ) -> None:  # pylint: disable=unused-argument
         """Parser for binary messages"""
 
-    @staticmethod
-    def _noop(accum: Accum, *_: Any) -> Accum:
-        return accum
-
     def parse(self, accum: Accum, data: bytes) -> Accum:
         if self.setters is None:
             return accum
         fields: Tuple[str, ...] = self.__slots__[1:]
         for k, v in zip(fields, unpack(self.PACKFMT, data[: self.SIZE])):
-            if (attr := getattr(self, k)) and attr != v:
+            if k in self.filters and not self.filters[k](v):
                 raise StopParsing
-            accum = self.setters.get(k, self._noop)(accum, v)  # type: ignore
+            if k in self.setters:
+                accum = self.setters[k](accum, v)  # type: ignore
         return accum
 
     @property

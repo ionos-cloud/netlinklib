@@ -232,7 +232,11 @@ def get_links(
             NlaInt32(IFLA_MASTER, setter=_set("master")),
             NlaNestByKind(
                 IFLA_LINKINFO,
-                NlaStr(IFLA_INFO_KIND, setter=_set("kind")),
+                NlaStr(
+                    IFLA_INFO_KIND,
+                    setter=_set("kind"),
+                    filter=lambda x: x in {"erspan", "ip6erspan"}
+                ),
                 vrf=(NlaInt32(IFLA_VRF_TABLE, setter=_set("krt")),),
                 erspan=(
                     *(
@@ -254,6 +258,7 @@ def get_links(
                     NlaIp6(IFLA_GRE_LOCAL, setter=_set("gre_local")),
                     NlaIp6(IFLA_GRE_REMOTE, setter=_set("gre_remote")),
                 ),
+                required=True,
             ),
         )
     return list(

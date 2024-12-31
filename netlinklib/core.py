@@ -551,10 +551,18 @@ class _NlaScalar(NlaAttr, Generic[T]):
         *args: Any,
         val: Optional[T] = None,
         setter: Optional[Callable[[Accum, T], Accum]] = None,
+        filter: Optional[Callable[[T], bool]] = None,
         **kwargs: Any,
     ) -> None:
         self.val = val
         self.setter = setter
+        # If user has proved a value, use it for
+        # filtering results during parsing.
+        self.filter: Optional[Callable[[T], bool]] = (
+            (lambda x: x == val)
+            if val is not None and filter is None
+            else filter
+        )
         super().__init__(*args, tag=tag, **kwargs)
 
     def __repr__(self) -> str:
@@ -573,7 +581,7 @@ class _NlaScalar(NlaAttr, Generic[T]):
         if self.setter is None:
             return accum
         parsed = self.from_bytes(data)
-        if self.val is not None and self.val != parsed:
+        if self.filter and not self.filter(parsed):
             raise StopParsing
         # mypy is upset that there are two separate Accum typevars
         # "Accum@__init__" and "Accum@parse", even though they
@@ -669,7 +677,7 @@ class _NlaNest(NlaType):
             key=lambda nla: (
                 # Parse "filter" objects first
                 1
-                if (isinstance(nla, _NlaScalar) and nla.val is not None)
+                if (isinstance(nla, _NlaScalar) and nla.filter is not None)
                 # Then decend into nested attributes
                 else (
                     2
