@@ -1,6 +1,7 @@
 from functools import partial
+from ipaddress import ip_address
 from socket import socket
-from typing import Any, Callable, Optional, Sequence, Tuple, TypeVar
+from typing import Any, Callable, List, Optional, Sequence, Tuple, TypeVar
 
 from netlinklib import *
 
@@ -75,35 +76,74 @@ class NlaNestByKind(NlaNest):
 
 
 def erspan_attrs(
-    kind: str,
     erspan_ver: Optional[int] = None,
     gre_link: Optional[int] = None,
     gre_ikey: Optional[int] = None,
     gre_okey: Optional[int] = None,
+) -> Tuple[NlaAttr, ...]:
+    return (
+        NlaInt(IFLA_GRE_LINK, val=gre_link),
+        NlaInt(IFLA_GRE_IFLAGS, val=(GRE_SEQ | GRE_KEY)),
+        NlaInt(IFLA_GRE_OFLAGS, val=(GRE_SEQ | GRE_KEY)),
+        NlaBe32(IFLA_GRE_IKEY, val=gre_ikey),
+        NlaBe32(IFLA_GRE_OKEY, val=gre_okey),
+        NlaInt(IFLA_GRE_ERSPAN_VER, val=erspan_ver),
+    )
+
+
+def erspan4_attrs(
     gre_local: Optional[str] = None,
     gre_remote: Optional[str] = None,
     **kwargs: Any,
-) -> Tuple[NlaAttr]:
+) -> Tuple[NlaAttr, ...]:
     return (
-        NlaStr(IFLA_INFO_KIND, val=kind),
+        NlaStr(IFLA_INFO_KIND, val="erspan"),
         NlaNest(
             IFLA_INFO_DATA,
-            NlaInt(IFLA_GRE_LINK, val=gre_link),
-            NlaInt(IFLA_GRE_IFLAGS, val=(GRE_SEQ | GRE_KEY)),
-            NlaInt(IFLA_GRE_OFLAGS, val=(GRE_SEQ | GRE_KEY)),
-            NlaBe32(IFLA_GRE_IKEY, val=gre_ikey),
-            NlaBe32(IFLA_GRE_OKEY, val=gre_okey),
-            NlaIp(IFLA_GRE_LOCAL, val=gre_local),
-            NlaIp(IFLA_GRE_REMOTE, val=gre_remote),
-            NlaInt(IFLA_GRE_ERSPAN_VER, val=erspan_ver),
+            *erspan_attrs(**kwargs),
+            NlaIp4(IFLA_GRE_LOCAL, val=gre_local),
+            NlaIp4(IFLA_GRE_REMOTE, val=gre_remote),
         ),
     )
 
 
-def vrf_attrs(krt: Optional[int] = None, **kwargs: Any) -> Tuple[NlaAttr]:
+def erspan6_attrs(
+    gre_local: Optional[str] = None,
+    gre_remote: Optional[str] = None,
+    **kwargs: Any,
+) -> Tuple[NlaAttr, ...]:
+    return (
+        NlaStr(IFLA_INFO_KIND, val="ip6erspan"),
+        NlaNest(
+            IFLA_INFO_DATA,
+            *erspan_attrs(**kwargs),
+            NlaIp6(IFLA_GRE_LOCAL, val=gre_local),
+            NlaIp6(IFLA_GRE_REMOTE, val=gre_remote),
+        ),
+    )
+
+
+def vrf_attrs(krt: Optional[int] = None) -> Tuple[NlaAttr, ...]:
     return (
         NlaStr(IFLA_INFO_KIND, val="vrf"),
         NlaNest(IFLA_INFO_DATA, NlaInt(IFLA_VRF_TABLE, val=krt)),
+    )
+
+
+def vxlan_attrs(
+    vxlan_id: Optional[int] = None,
+    vxlan_local: Optional[int] = None,
+    vxlan_learning: Optional[bool] = None,
+    vxlan_port: Optional[int] = None,
+) -> Tuple[NlaAttr, ...]:
+    return (
+        NlaStr(IFLA_INFO_KIND, val="vxlan"),
+        NlaNest(
+            NlaInt(IFLA_VXLAN_ID, val=vxlan_id),
+            NlaIp4(IFLA_VXLAN_LOCAL, val=vxlan_local),
+            NlaInt(IFLA_VXLAN_LEARNING, val=vxlan_learning),
+            NlaInt(IFLA_VXLAN_PORT, val=vxlan_port),
+        ),
     )
 
 
@@ -124,9 +164,11 @@ def link_attrs(
         NlaNest(
             IFLA_LINKINFO,
             *(
-                erspan_attrs(kind=kind, **kwargs)
-                if kind in ("erspan", "ip6erspan")
-                else vrf_attrs(**kwargs) if kind == "vrf" else ()
+                erspan4_attrs(**kwargs) if kind == "erspan"
+                else erspan6_attrs(**kwargs) if kind == "ip6erspan"
+                else vrf_attrs(**kwargs) if kind == "vrf"
+                else vxlan_attrs(**kwargs) if kind == "vxlan"
+                else ()
             ),
         ),
     )
@@ -193,19 +235,25 @@ def get_links(
                 NlaStr(IFLA_INFO_KIND, setter=_set("kind")),
                 vrf=(NlaInt(IFLA_VRF_TABLE, setter=_set("krt")),),
                 erspan=(
-                    erspan_attrs := (
-                        NlaInt(
-                            IFLA_GRE_ERSPAN_VER,
-                            setter=_set("erspan_ver"),
-                        ),
-                        NlaBe32(IFLA_GRE_IKEY, setter=_set("gre_ikey")),
-                        NlaBe32(IFLA_GRE_OKEY, setter=_set("gre_okey")),
-                        NlaIp(IFLA_GRE_LOCAL, setter=_set("gre_local")),
-                        NlaIp(IFLA_GRE_REMOTE, setter=_set("gre_remote")),
-                        NlaInt(IFLA_GRE_LINK, setter=_set("gre_link")),
-                    )
+                    *(
+                        erspan_attrs := (
+                            NlaInt(
+                                IFLA_GRE_ERSPAN_VER,
+                                setter=_set("erspan_ver"),
+                            ),
+                            NlaBe32(IFLA_GRE_IKEY, setter=_set("gre_ikey")),
+                            NlaBe32(IFLA_GRE_OKEY, setter=_set("gre_okey")),
+                            NlaInt(IFLA_GRE_LINK, setter=_set("gre_link")),
+                        )
+                    ),
+                    NlaIp4(IFLA_GRE_LOCAL, setter=_set("gre_local")),
+                    NlaIp4(IFLA_GRE_REMOTE, setter=_set("gre_remote")),
                 ),
-                ip6erspan=erspan_attrs,
+                ip6erspan=(
+                    *erspan_attrs,
+                    NlaIp6(IFLA_GRE_LOCAL, setter=_set("gre_local")),
+                    NlaIp6(IFLA_GRE_REMOTE, setter=_set("gre_remote")),
+                ),
             ),
         )
     return list(
@@ -223,26 +271,38 @@ def get_links(
 if __name__ == "__main__":
     from pprint import pprint
 
-    pprint(
-        link_add(
-            name="myersp",
-            up=True,
-            kind="ip6erspan",
-            gre_link=link_add(
-                name="myvrf",
+    try:
+        pprint(
+            link_add(
+                name="myersp",
                 up=True,
-                kind="vrf",
-                krt=999,
-            ),
-            erspan_ver=1,
-            gre_ikey=1,
-            gre_okey=1,
-            gre_local="::1",
-            gre_remote="::2",
+                kind="ip6erspan",
+                gre_link=link_add(
+                    name="myvrf",
+                    up=True,
+                    kind="vrf",
+                    krt=999,
+                ),
+                erspan_ver=1,
+                gre_ikey=1,
+                gre_okey=1,
+                gre_local="::1",
+                gre_remote="::2",
+            )
         )
-    )
-
-    pprint(list(get_links()))
-
-    link_del(name="myersp")
-    link_del(name="myvrf")
+        # pprint(
+        #     link_add(
+        #         name="myvxlan",
+        #         up=True,
+        #         kind="vxlan",
+        #         vxlan_id=1,
+        #         vxlan_local=None,
+        #         vxlan_learning=None,
+        #         vxlan_port=None,
+        #     )
+        # )
+    finally:
+        pprint(list(get_links()))
+        link_del(name="myersp")
+        link_del(name="myvrf")
+        # link_del(name="myvxlan")
