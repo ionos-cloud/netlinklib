@@ -5,7 +5,7 @@ from collections import ChainMap
 from functools import partial, reduce
 from os import getpid, strerror
 from socket import AF_NETLINK, NETLINK_ROUTE, SOCK_NONBLOCK, SOCK_RAW, socket
-from struct import error as StructError, pack
+from struct import error as StructError, pack, unpack
 from sys import byteorder
 from typing import (
     Any,
@@ -41,6 +41,7 @@ __all__ = (
     "NlaIp4",
     "NlaIp6",
     "NlaList",
+    "NlaMac",
     "NlaNest",
     "NlaStruct",
     "NlaStr",
@@ -541,8 +542,6 @@ class _NlaScalar(NlaAttr, Generic[T]):
     using user provided callback instead...
     """
 
-    ACCUM_REPR: Callable[[T], Any]
-
     def __init__(
         self,
         tag: int,
@@ -576,12 +575,10 @@ class _NlaScalar(NlaAttr, Generic[T]):
         # mypy is upset that there are two separate Accum typevars
         # "Accum@__init__" and "Accum@parse", even though they
         # _really are_ expressing the same type...
-        return self.setter(accum, self.ACCUM_REPR(parsed))  # type: ignore
+        return self.setter(accum, parsed)  # type: ignore
 
 
 class NlaStr(_NlaScalar[str]):
-    ACCUM_REPR = str
-
     def _bytes(self) -> bytes:
         assert self.val is not None
         return self.val.encode("ascii") + b"\0"
@@ -592,7 +589,6 @@ class NlaStr(_NlaScalar[str]):
 
 class _NlaInt(_NlaScalar[int]):
     BYTEORDER: Literal["big", "little"]
-    ACCUM_REPR = int
 
     def _bytes(self) -> bytes:
         assert self.val is not None
@@ -611,8 +607,6 @@ class NlaBe32(_NlaInt):
 
 
 class _NlaIp(_NlaScalar[str]):
-    ACCUM_REPR = str
-
     def _bytes(self) -> bytes:
         assert self.val is not None
         return ip_address(self.val).packed
@@ -626,6 +620,15 @@ class NlaIp4(_NlaIp):
 class NlaIp6(_NlaIp):
     def from_bytes(self, data: bytes) -> str:
         return str(IPv6Address(int.from_bytes(data, byteorder="big")))
+
+
+class NlaMac(_NlaScalar[str]):
+    def _bytes(self) -> bytes:
+        assert self.val is not None
+        return pack("BBBBBB", *(int(i, 16) for i in self.val.split(":")))
+
+    def from_bytes(self, data: bytes) -> str:
+        return ":".join(f"{i:02x}" for i in unpack("BBBBBB", data))
 
 
 class _NlaNest(NlaType):
