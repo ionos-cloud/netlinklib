@@ -37,7 +37,7 @@ from .classes import nlmsgerr, nlmsghdr, rtattr  # type: ignore [attr-defined]
 __all__ = (
     "NlaAttr",
     "NlaBe32",
-    "NlaInt",
+    "NlaInt32",
     "NlaIp4",
     "NlaIp6",
     "NlaList",
@@ -587,7 +587,7 @@ class NlaStr(_NlaScalar[str]):
         return bytes(data).rstrip(b"\0").decode("ascii")
 
 
-class _NlaInt(_NlaScalar[int]):
+class _NlaInt32(_NlaScalar[int]):
     BYTEORDER: Literal["big", "little"]
 
     def _bytes(self) -> bytes:
@@ -598,11 +598,11 @@ class _NlaInt(_NlaScalar[int]):
         return int.from_bytes(data, byteorder=self.BYTEORDER)
 
 
-class NlaInt(_NlaInt):
+class NlaInt32(_NlaInt32):
     BYTEORDER = byteorder
 
 
-class NlaBe32(_NlaInt):
+class NlaBe32(_NlaInt32):
     BYTEORDER = "big"
 
 
