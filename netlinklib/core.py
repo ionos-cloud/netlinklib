@@ -38,7 +38,8 @@ __all__ = (
     "NlaAttr",
     "NlaBe32",
     "NlaInt",
-    "NlaIp",
+    "NlaIp4",
+    "NlaIp6",
     "NlaList",
     "NlaNest",
     "NlaStruct",
@@ -609,18 +610,22 @@ class NlaBe32(_NlaInt):
     BYTEORDER = "big"
 
 
-class NlaIp(_NlaScalar[Union[IPv4Address, IPv6Address]]):
+class _NlaIp(_NlaScalar[str]):
     ACCUM_REPR = str
 
     def _bytes(self) -> bytes:
         assert self.val is not None
         return ip_address(self.val).packed
 
-    def from_bytes(self, data: bytes) -> Union[IPv4Address, IPv6Address]:
-        size = len(data)
-        if size == 4:
-            return IPv4Address(int.from_bytes(data, byteorder="big"))
-        return IPv6Address(int.from_bytes(data, byteorder="big"))
+
+class NlaIp4(_NlaIp):
+    def from_bytes(self, data: bytes) -> str:
+        return str(IPv4Address(int.from_bytes(data, byteorder="big")))
+
+
+class NlaIp6(_NlaIp):
+    def from_bytes(self, data: bytes) -> str:
+        return str(IPv6Address(int.from_bytes(data, byteorder="big")))
 
 
 class _NlaNest(NlaType):
