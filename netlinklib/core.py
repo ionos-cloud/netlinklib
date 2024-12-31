@@ -45,6 +45,9 @@ __all__ = (
     "NlaNest",
     "NlaStruct",
     "NlaStr",
+    "NlaUInt8",
+    "NlaUInt16",
+    "NlaUInt64",
     "iterate_rtalist",
     "legacy_nll_get_dump",
     "legacy_nll_transact",
@@ -587,23 +590,44 @@ class NlaStr(_NlaScalar[str]):
         return bytes(data).rstrip(b"\0").decode("ascii")
 
 
-class _NlaInt32(_NlaScalar[int]):
+class _NlaInt(_NlaScalar[int]):
     BYTEORDER: Literal["big", "little"]
+    PACKFMT: Literal["i", "B", "H", "Q"]
 
     def _bytes(self) -> bytes:
         assert self.val is not None
-        return pack(f"{'>' if self.BYTEORDER == 'big' else '<'}i", self.val)
+        return pack(
+            f"{'>' if self.BYTEORDER == 'big' else '<'}{self.PACKFMT}",
+            self.val,
+        )
 
     def from_bytes(self, data: bytes) -> int:
         return int.from_bytes(data, byteorder=self.BYTEORDER)
 
 
-class NlaInt32(_NlaInt32):
+class NlaUInt8(_NlaInt):
     BYTEORDER = byteorder
+    PACKFMT = "B"
 
 
-class NlaBe32(_NlaInt32):
+class NlaUInt16(_NlaInt):
+    BYTEORDER = byteorder
+    PACKFMT = "H"
+
+
+class NlaInt32(_NlaInt):
+    BYTEORDER = byteorder
+    PACKFMT = "i"
+
+
+class NlaBe32(_NlaInt):
     BYTEORDER = "big"
+    PACKFMT = "i"
+
+
+class NlaUInt64(_NlaInt):
+    BYTEORDER = byteorder
+    PACKFMT = "Q"
 
 
 class _NlaIp(_NlaScalar[str]):
