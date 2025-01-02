@@ -600,7 +600,7 @@ class NlaStr(_NlaScalar[str]):
 
 class _NlaInt(_NlaScalar[int]):
     BYTEORDER: Literal["big", "little"]
-    PACKFMT: Literal["i", "B", "H", "Q"]
+    PACKFMT: Literal["b", "h", "q", "i", "B", "H", "Q", "I"]
 
     def _bytes(self) -> bytes:
         assert self.val is not None
@@ -613,9 +613,19 @@ class _NlaInt(_NlaScalar[int]):
         return int.from_bytes(data, byteorder=self.BYTEORDER)
 
 
+class NlaInt8(_NlaInt):
+    BYTEORDER = byteorder
+    PACKFMT = "b"
+
+
 class NlaUInt8(_NlaInt):
     BYTEORDER = byteorder
     PACKFMT = "B"
+
+
+class NlaInt16(_NlaInt):
+    BYTEORDER = byteorder
+    PACKFMT = "h"
 
 
 class NlaUInt16(_NlaInt):
@@ -631,6 +641,16 @@ class NlaInt32(_NlaInt):
 class NlaBe32(_NlaInt):
     BYTEORDER = "big"
     PACKFMT = "i"
+
+
+class NlaUInt32(_NlaInt):
+    BYTEORDER = byteorder
+    PACKFMT = "I"
+
+
+class NlaInt64(_NlaInt):
+    BYTEORDER = byteorder
+    PACKFMT = "q"
 
 
 class NlaUInt64(_NlaInt):
