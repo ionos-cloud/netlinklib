@@ -51,28 +51,8 @@ def _set(
     return _setattr
 
 
-class NlaNestByKind(NlaNest):
-    def __init__(
-        self,
-        tag: int,
-        *nlas: NlaAttr,
-        required: bool = False,
-        **kinds: Sequence[NlaAttr],
-    ) -> None:
-        def _callback(data: bytes) -> None:
-            self.nlas.append(
-                NlaNest(
-                    IFLA_INFO_DATA,
-                    *kinds.get(NlaStr(IFLA_INFO_KIND).from_bytes(data), ()),
-                )
-            )
-
-        super().__init__(
-            tag,
-            *nlas,
-            required=required,
-            callbacks={IFLA_INFO_KIND: _callback},
-        )
+def dummy_attrs() -> Tuple[NlaAttr, ...]:
+    return (NlaStr(IFLA_INFO_KIND, val="dummy"),)
 
 
 def erspan_attrs(
@@ -132,13 +112,14 @@ def vrf_attrs(krt: Optional[int] = None) -> Tuple[NlaAttr, ...]:
 
 def vxlan_attrs(
     vxlan_id: Optional[int] = None,
-    vxlan_local: Optional[int] = None,
+    vxlan_local: Optional[str] = None,
     vxlan_learning: Optional[bool] = None,
     vxlan_port: Optional[int] = None,
 ) -> Tuple[NlaAttr, ...]:
     return (
         NlaStr(IFLA_INFO_KIND, val="vxlan"),
         NlaNest(
+            IFLA_INFO_DATA,
             NlaInt32(IFLA_VXLAN_ID, val=vxlan_id),
             NlaIp4(IFLA_VXLAN_LOCAL, val=vxlan_local),
             NlaInt32(IFLA_VXLAN_LEARNING, val=vxlan_learning),
@@ -164,7 +145,8 @@ def link_attrs(
         NlaNest(
             IFLA_LINKINFO,
             *(
-                erspan4_attrs(**kwargs) if kind == "erspan"
+                dummy_attrs(**kwargs) if kind == "dummy"
+                else erspan4_attrs(**kwargs) if kind == "erspan"
                 else erspan6_attrs(**kwargs) if kind == "ip6erspan"
                 else vrf_attrs(**kwargs) if kind == "vrf"
                 else vxlan_attrs(**kwargs) if kind == "vxlan"
@@ -230,33 +212,39 @@ def get_links(
             NlaStr(IFLA_IFNAME, setter=_set("name")),
             NlaInt32(IFLA_LINK, setter=_set("peer")),
             NlaInt32(IFLA_MASTER, setter=_set("master")),
-            NlaNestByKind(
+            NlaNest(
                 IFLA_LINKINFO,
-                NlaStr(
-                    IFLA_INFO_KIND,
-                    setter=_set("kind"),
-                    filter=lambda x: x in {"erspan", "ip6erspan"}
-                ),
-                vrf=(NlaInt32(IFLA_VRF_TABLE, setter=_set("krt")),),
-                erspan=(
-                    *(
-                        erspan_attrs := (
-                            NlaInt32(
-                                IFLA_GRE_ERSPAN_VER,
-                                setter=_set("erspan_ver"),
+                NlaStr(IFLA_INFO_KIND, setter=_set("kind")),
+                NlaUnion(
+                    key=lambda accum: accum.kind,
+                    attrs={
+                        "vrf": NlaNest(
+                            IFLA_INFO_DATA,
+                            NlaInt32(IFLA_VRF_TABLE, setter=_set("krt")),
+                        ),
+                        "erspan": NlaNest(
+                            IFLA_INFO_DATA,
+                            *(
+                                erspan_attrs := (
+                                    NlaInt32(
+                                        IFLA_GRE_ERSPAN_VER,
+                                        setter=_set("erspan_ver"),
+                                    ),
+                                    NlaBe32(IFLA_GRE_IKEY, setter=_set("gre_ikey")),
+                                    NlaBe32(IFLA_GRE_OKEY, setter=_set("gre_okey")),
+                                    NlaInt32(IFLA_GRE_LINK, setter=_set("gre_link")),
+                                )
                             ),
-                            NlaBe32(IFLA_GRE_IKEY, setter=_set("gre_ikey")),
-                            NlaBe32(IFLA_GRE_OKEY, setter=_set("gre_okey")),
-                            NlaInt32(IFLA_GRE_LINK, setter=_set("gre_link")),
-                        )
-                    ),
-                    NlaIp4(IFLA_GRE_LOCAL, setter=_set("gre_local")),
-                    NlaIp4(IFLA_GRE_REMOTE, setter=_set("gre_remote")),
-                ),
-                ip6erspan=(
-                    *erspan_attrs,
-                    NlaIp6(IFLA_GRE_LOCAL, setter=_set("gre_local")),
-                    NlaIp6(IFLA_GRE_REMOTE, setter=_set("gre_remote")),
+                            NlaIp4(IFLA_GRE_LOCAL, setter=_set("gre_local")),
+                            NlaIp4(IFLA_GRE_REMOTE, setter=_set("gre_remote")),
+                        ),
+                        "ip6erspan": NlaNest(
+                            IFLA_INFO_DATA,
+                            *erspan_attrs,
+                            NlaIp6(IFLA_GRE_LOCAL, setter=_set("gre_local")),
+                            NlaIp6(IFLA_GRE_REMOTE, setter=_set("gre_remote")),
+                        ),
+                    }
                 ),
                 required=True,
             ),
@@ -295,19 +283,36 @@ if __name__ == "__main__":
                 gre_remote="::2",
             )
         )
-        # pprint(
-        #     link_add(
-        #         name="myvxlan",
-        #         up=True,
-        #         kind="vxlan",
-        #         vxlan_id=1,
-        #         vxlan_local=None,
-        #         vxlan_learning=None,
-        #         vxlan_port=None,
-        #     )
-        # )
+        pprint(
+            link_add(
+                name="mydummy",
+                up=True,
+                kind="dummy",
+            )
+        )
     finally:
         pprint(list(get_links()))
         link_del(name="myersp")
         link_del(name="myvrf")
-        # link_del(name="myvxlan")
+        link_del(name="mydummy")
+
+    """
+    from sys import argv
+    from time import time
+
+    full = len(argv) == 1
+    nlinks = 5000
+
+    if full or "setup" in argv:
+        for i in range(nlinks):
+            link_add(name=f"if{i}", kind="dummy")
+
+    start = time()
+    list(get_links())
+    print(time() - start)
+
+    if full or "cleanup" in argv:
+        for i in range(nlinks):
+            link_del(name=f"if{i}", kind="dummy")
+
+    """

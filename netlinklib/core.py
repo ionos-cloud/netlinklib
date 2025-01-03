@@ -30,6 +30,7 @@ from .datatypes import (
     NllMsg,
     RtaDesc,
     StopParsing,
+    nll_assert,
 )
 from .defs import *  # pylint: disable=wildcard-import, unused-wildcard-import
 from .classes import nlmsgerr, nlmsghdr, rtattr  # type: ignore [attr-defined]
@@ -52,6 +53,7 @@ __all__ = (
     "NlaUInt32",
     "NlaInt64",
     "NlaUInt64",
+    "NlaUnion",
     "iterate_rtalist",
     "legacy_nll_get_dump",
     "legacy_nll_transact",
@@ -554,19 +556,17 @@ class _NlaScalar(NlaAttr, Generic[T]):
         tag: int,
         *args: Any,
         val: Optional[T] = None,
+        callback: Optional[Callable[[T], None]] = None,
         setter: Optional[Callable[[Accum, T], Accum]] = None,
-        filter: Optional[Callable[[T], bool]] = None,
         **kwargs: Any,
     ) -> None:
         self.val = val
-        self.setter = setter
-        # If user has proved a value, use it for
-        # filtering results during parsing.
-        self.filter: Optional[Callable[[T], bool]] = (
-            (lambda x: x == val)
-            if val is not None and filter is None
-            else filter
+        self.callback = (
+            nll_assert(lambda x: x == val)
+            if val is not None and callback is None
+            else callback
         )
+        self.setter = setter
         super().__init__(*args, tag=tag, **kwargs)
 
     def __repr__(self) -> str:
@@ -585,8 +585,8 @@ class _NlaScalar(NlaAttr, Generic[T]):
         if self.setter is None:
             return accum
         parsed = self.from_bytes(data)
-        if self.filter and not self.filter(parsed):
-            raise StopParsing
+        if self.callback:
+            self.callback(parsed)
         # mypy is upset that there are two separate Accum typevars
         # "Accum@__init__" and "Accum@parse", even though they
         # _really are_ expressing the same type...
@@ -687,31 +687,42 @@ class NlaMac(_NlaScalar[str]):
         return ":".join(f"{i:02x}" for i in unpack("BBBBBB", data))
 
 
-class _NlaNest(NlaType):
-    """Nested NLA list without tag (used as part of NlaStruct)"""
+class NlaUnion(NlaAttr):
+    """
+    A union of NLA types, to be resolved at parse
+    time using the accumulated state.
+    """
 
     def __init__(
         self,
-        *nlas: NlaAttr,
-        callbacks: Optional[Dict[int, Callable[[bytes], None]]] = None,
+        *args: Any,
+        key: Callable[[Accum], str],
+        attrs: Dict[Any, NlaAttr],
         **kwargs: Any,
     ) -> None:
-        self.nlas = sorted(
-            nlas,
-            key=lambda nla: (
-                # Parse "filter" objects first
-                1
-                if (isinstance(nla, _NlaScalar) and nla.filter is not None)
-                # Then decend into nested attributes
-                else (
-                    2
-                    if isinstance(nla, _NlaNest)
-                    # Then parse scalar attributes
-                    else 3
-                )
-            ),
-        )
-        self.callbacks = {} if callbacks is None else callbacks
+        self.key = key
+        self.attrs = attrs
+        super().__init__(*args, **kwargs)
+
+    def _bytes(self) -> bytes:
+        raise NotImplementedError("NlaUnion is only for parsing.")
+
+    def parse(self, accum: Accum, data: bytes) -> Accum:
+        # This shouldn't ever be called, since union should
+        # be resolved into one of its underlying types,
+        # but NlaAttr need it defined for abstract method reasons
+        raise NotImplementedError
+
+    def resolve(self, accum: Accum) -> NlaAttr:
+        # can raise KeyError
+        return self.attrs[self.key(accum)]  # type: ignore
+
+
+class _NlaNest(NlaType):
+    """Nested NLA list without tag (used as part of NlaStruct)"""
+
+    def __init__(self, *nlas: NlaAttr, **kwargs: Any) -> None:
+        self.nlas = nlas
         super().__init__(**kwargs)
 
     def __repr__(self) -> str:
@@ -733,15 +744,13 @@ class _NlaNest(NlaType):
             increment = (rta.rta_len + 4 - 1) & ~(4 - 1)
             attrs[rta.rta_type] = rta.remainder[: rta.rta_len - rtattr.SIZE]
             data = data[increment:]
-        # Delay any parsing, since self.has/no_val could
-        # get altered by a callback.
-        for tag, callback in self.callbacks.items():
-            callback(attrs[tag])
         for nla in self.nlas:
             try:
+                if isinstance(nla, NlaUnion):
+                    nla = nla.resolve(accum)
                 accum = nla.parse(accum, attrs[nla.tag])
             except KeyError:
-                if getattr(nla, "val", None) is not None or nla.required:
+                if nla.required:
                     raise StopParsing
         return accum
 

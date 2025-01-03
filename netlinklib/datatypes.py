@@ -23,6 +23,7 @@ __all__ = (
     "NllError",
     "NllDumpInterrupted",
     "NllMsg",
+    "nll_assert",
     "nlmsgerr",
 )
 
@@ -44,10 +45,6 @@ class NllDumpInterrupted(NllException):
     """ "Dump interrupted" condition reported by the kernel"""
 
 
-class StopParsing(Exception):
-    pass
-
-
 class NllMsg:
     """Encoder / decoder for a `struct` used in netlink messages"""
 
@@ -58,12 +55,12 @@ class NllMsg:
     def __init__(
         self,
         *args: Any,
+        callbacks: Optional[Dict[str, Callable[[Any], None]]] = None,
         setters: Optional[Dict[str, Callable[[Accum, Any], Accum]]] = None,
-        filters: Optional[Dict[str, Callable[[Any], bool]]] = None,
         **kwargs: Any,
     ) -> None:
         self.setters = setters
-        self.filters = {} if filters is None else filters
+        self.callbacks = {} if callbacks is None else callbacks
         try:  # Faster than checking for len(args), and this is a bottleneck
             self.from_bytes(args[0][: self.SIZE])
             self.remainder = args[0][self.SIZE :]
@@ -78,8 +75,10 @@ class NllMsg:
                 setattr(self, attr, kwargs[attr])
                 # If user provides a value, use it as
                 # a default filter during parsing
-                if attr not in self.filters:
-                    self.filters[attr] = lambda x: x == kwargs[attr]
+                if attr not in self.callbacks:
+                    self.callbacks[attr] = nll_assert(
+                        lambda val: val == kwargs[attr]
+                    )
             except KeyError as e:
                 if hints[attr] is int:
                     setattr(self, attr, 0)
@@ -116,8 +115,8 @@ class NllMsg:
             return accum
         fields: Tuple[str, ...] = self.__slots__[1:]
         for k, v in zip(fields, unpack(self.PACKFMT, data[: self.SIZE])):
-            if k in self.filters and not self.filters[k](v):
-                raise StopParsing
+            if k in self.callbacks:
+                self.callbacks[k](v)
             if k in self.setters:
                 accum = self.setters[k](accum, v)  # type: ignore
         return accum
@@ -157,3 +156,21 @@ class nlmsgerr(NllMsg):
 
     def from_bytes(self, inp: bytes) -> None:
         (self.error,) = unpack(self.PACKFMT, inp)
+
+
+############################################################
+
+
+T = TypeVar("T")
+
+
+class StopParsing(Exception):
+    pass
+
+
+def nll_assert(stmt: Callable[[T], bool]) -> Callable[[T], None]:
+    def _assert(val: T) -> None:
+        if not stmt(val):
+            raise StopParsing
+
+    return _assert
