@@ -36,8 +36,6 @@ from .classes import nlmsgerr, nlmsghdr, rtattr  # type: ignore [attr-defined]
 
 __all__ = (
     "NlaAttr",
-    "NlaBe32",
-    "NlaInt32",
     "NlaIp4",
     "NlaIp6",
     "NlaList",
@@ -45,8 +43,14 @@ __all__ = (
     "NlaNest",
     "NlaStruct",
     "NlaStr",
+    "NlaInt8",
     "NlaUInt8",
+    "NlaInt16",
     "NlaUInt16",
+    "NlaBe32",
+    "NlaInt32",
+    "NlaUInt32",
+    "NlaInt64",
     "NlaUInt64",
     "iterate_rtalist",
     "legacy_nll_get_dump",
