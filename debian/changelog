@@ -1,3 +1,38 @@
+netlinklib (2.0.1) stable; urgency=medium
+
+  [ Eugene Crosser ]
+  * mknetlinkdefs.py: use ULL for values in `deps`
+  * Use NLL_EXTRA_HEADERS env for more netlink headers
+  * mknetlinkdefs: include veth.h for VETH_INFO_PEER
+
+  [ Michael Dickensheets ]
+  * core: better NlaList and event handling
+
+  [ Eugene Crosser ]
+  * Add `__repr__()` to NlaStruct
+
+  [ Michael Dickensheets ]
+  * core: fix NlaIp parsing
+  * core: split NlaIp into separate IP4 and IP6 types
+  * examples: update link example
+  * core: add NlaMac type
+
+  [ Eugene Crosser ]
+  * sed -i -e s/NlaInt/NlaInt32/g
+  * Introduce NlaUInt[8,16,64]
+
+  [ Michael Dickensheets ]
+  * core: add more generic parser filtering mechanism
+  * core: add remaining Nla(U)Int* classes
+
+  [ Eugene Crosser ]
+  * inlcude all Nla*Int* in __all__ for proper export
+
+  [ Michael Dickensheets ]
+  * Subsume filter mechanism into generalized callback.
+
+ -- Michael Dickensheets <michael.dickensheets@ionos.com>  Tue, 07 Jan 2025 12:26:09 +0100
+
 netlinklib (2.0.0) stable; urgency=medium
 
   * core: introduce NlaType
