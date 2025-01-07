@@ -33,7 +33,7 @@ RtaDesc = Dict[int, Tuple[Callable[..., Any], Any]]
 Accum = TypeVar("Accum")
 
 
-class NllException(BaseException):
+class NllException(Exception):
     """Any exception originating from here"""
 
 
