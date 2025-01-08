@@ -684,6 +684,11 @@ class NlaMac(_NlaScalar[str]):
         return pack("BBBBBB", *(int(i, 16) for i in self.val.split(":")))
 
     def from_bytes(self, data: bytes) -> str:
+        if len(data) != 6:
+            # Some interfaces (tun type for instance) include mac
+            # attribute with empty payload. Let user decide
+            # if they are interested.
+            return ""
         return ":".join(f"{i:02x}" for i in unpack("BBBBBB", data))
 
 
