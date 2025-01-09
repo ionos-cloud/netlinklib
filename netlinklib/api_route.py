@@ -146,7 +146,7 @@ def nll_get_routes(  # pylint: disable=too-many-arguments
         for subl in legacy_nll_get_dump(
             RTM_GETROUTE,
             RTM_NEWROUTE,
-            rtmsg(**rtm_kw).bytes,  # type: ignore
+            rtmsg(**rtm_kw).bytes,
             rtm_nla,
             newroute_parser,
             sk=socket,

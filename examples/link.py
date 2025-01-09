@@ -1,7 +1,21 @@
+from collections import defaultdict
 from functools import partial
 from ipaddress import ip_address
 from socket import socket
-from typing import Any, Callable, List, Optional, Sequence, Tuple, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    NoReturn,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+    cast,
+)
 
 from netlinklib import *
 
@@ -9,6 +23,10 @@ from netlinklib import *
 IFF_UP = 1
 
 Accum = TypeVar("Accum")
+
+
+def raise_exc(exc: Union[Exception, Type[Exception]]) -> NoReturn:
+    raise exc
 
 
 class LinkAccum:
@@ -41,18 +59,18 @@ class LinkAccum:
         )
 
 
-def _set(
+def saveas(
     key: str, transform: Callable[[Any], Any] = lambda x: x
 ) -> Callable[[Accum, Any], Accum]:
-    def _setattr(accum: Accum, val: Any) -> Accum:
+    def _saveas(accum: Accum, val: Any) -> Accum:
         setattr(accum, key, transform(val))
         return accum
 
-    return _setattr
+    return _saveas
 
 
 def dummy_attrs() -> Tuple[NlaAttr, ...]:
-    return (NlaStr(IFLA_INFO_KIND, val="dummy"),)
+    return (NlaStr(IFLA_INFO_KIND, "dummy"),)
 
 
 def erspan_attrs(
@@ -62,12 +80,12 @@ def erspan_attrs(
     gre_okey: Optional[int] = None,
 ) -> Tuple[NlaAttr, ...]:
     return (
-        NlaInt32(IFLA_GRE_LINK, val=gre_link),
-        NlaInt32(IFLA_GRE_IFLAGS, val=(GRE_SEQ | GRE_KEY)),
-        NlaInt32(IFLA_GRE_OFLAGS, val=(GRE_SEQ | GRE_KEY)),
-        NlaBe32(IFLA_GRE_IKEY, val=gre_ikey),
-        NlaBe32(IFLA_GRE_OKEY, val=gre_okey),
-        NlaInt32(IFLA_GRE_ERSPAN_VER, val=erspan_ver),
+        NlaInt32(IFLA_GRE_LINK, gre_link),
+        NlaInt32(IFLA_GRE_IFLAGS, (GRE_SEQ | GRE_KEY)),
+        NlaInt32(IFLA_GRE_OFLAGS, (GRE_SEQ | GRE_KEY)),
+        NlaBe32(IFLA_GRE_IKEY, gre_ikey),
+        NlaBe32(IFLA_GRE_OKEY, gre_okey),
+        NlaInt32(IFLA_GRE_ERSPAN_VER, erspan_ver),
     )
 
 
@@ -77,12 +95,12 @@ def erspan4_attrs(
     **kwargs: Any,
 ) -> Tuple[NlaAttr, ...]:
     return (
-        NlaStr(IFLA_INFO_KIND, val="erspan"),
+        NlaStr(IFLA_INFO_KIND, "erspan"),
         NlaNest(
             IFLA_INFO_DATA,
             *erspan_attrs(**kwargs),
-            NlaIp4(IFLA_GRE_LOCAL, val=gre_local),
-            NlaIp4(IFLA_GRE_REMOTE, val=gre_remote),
+            NlaIp4(IFLA_GRE_LOCAL, gre_local),
+            NlaIp4(IFLA_GRE_REMOTE, gre_remote),
         ),
     )
 
@@ -93,20 +111,20 @@ def erspan6_attrs(
     **kwargs: Any,
 ) -> Tuple[NlaAttr, ...]:
     return (
-        NlaStr(IFLA_INFO_KIND, val="ip6erspan"),
+        NlaStr(IFLA_INFO_KIND, "ip6erspan"),
         NlaNest(
             IFLA_INFO_DATA,
             *erspan_attrs(**kwargs),
-            NlaIp6(IFLA_GRE_LOCAL, val=gre_local),
-            NlaIp6(IFLA_GRE_REMOTE, val=gre_remote),
+            NlaIp6(IFLA_GRE_LOCAL, gre_local),
+            NlaIp6(IFLA_GRE_REMOTE, gre_remote),
         ),
     )
 
 
 def vrf_attrs(krt: Optional[int] = None) -> Tuple[NlaAttr, ...]:
     return (
-        NlaStr(IFLA_INFO_KIND, val="vrf"),
-        NlaNest(IFLA_INFO_DATA, NlaInt32(IFLA_VRF_TABLE, val=krt)),
+        NlaStr(IFLA_INFO_KIND, "vrf"),
+        NlaNest(IFLA_INFO_DATA, NlaInt32(IFLA_VRF_TABLE, krt)),
     )
 
 
@@ -117,13 +135,13 @@ def vxlan_attrs(
     vxlan_port: Optional[int] = None,
 ) -> Tuple[NlaAttr, ...]:
     return (
-        NlaStr(IFLA_INFO_KIND, val="vxlan"),
+        NlaStr(IFLA_INFO_KIND, "vxlan"),
         NlaNest(
             IFLA_INFO_DATA,
-            NlaInt32(IFLA_VXLAN_ID, val=vxlan_id),
-            NlaIp4(IFLA_VXLAN_LOCAL, val=vxlan_local),
-            NlaInt32(IFLA_VXLAN_LEARNING, val=vxlan_learning),
-            NlaInt32(IFLA_VXLAN_PORT, val=vxlan_port),
+            NlaInt32(IFLA_VXLAN_ID, vxlan_id),
+            NlaIp4(IFLA_VXLAN_LOCAL, vxlan_local),
+            NlaInt32(IFLA_VXLAN_LEARNING, vxlan_learning),
+            NlaInt32(IFLA_VXLAN_PORT, vxlan_port),
         ),
     )
 
@@ -139,19 +157,27 @@ def link_attrs(
 ) -> NlaStruct:
     return NlaStruct(
         ifinfomsg(ifi_index=ifindex, ifi_flags=IFF_UP if up else 0),
-        NlaStr(IFLA_IFNAME, val=name),
-        NlaInt32(IFLA_LINK, val=peer),
-        NlaInt32(IFLA_MASTER, val=master),
-        NlaNest(
-            IFLA_LINKINFO,
-            *(
-                dummy_attrs(**kwargs) if kind == "dummy"
-                else erspan4_attrs(**kwargs) if kind == "erspan"
-                else erspan6_attrs(**kwargs) if kind == "ip6erspan"
-                else vrf_attrs(**kwargs) if kind == "vrf"
-                else vxlan_attrs(**kwargs) if kind == "vxlan"
-                else ()
-            ),
+        NlaStr(IFLA_IFNAME, name),
+        NlaInt32(IFLA_LINK, peer),
+        NlaInt32(IFLA_MASTER, master),
+        *(
+            (
+                NlaNest(
+                    IFLA_LINKINFO,
+                    *cast(
+                        Dict[str, Callable[..., Tuple[NlaAttr, ...]]],
+                        {
+                            "dummy": dummy_attrs,
+                            "erspan": erspan4_attrs,
+                            "ip6erspan": erspan6_attrs,
+                            "vrf": vrf_attrs,
+                            "vxlan": vxlan_attrs,
+                        },
+                    )[kind](**kwargs),
+                ),
+            )
+            if kind
+            else ()
         ),
     )
 
@@ -159,7 +185,7 @@ def link_attrs(
 def _link(
     msg_type: int,
     sk: Optional[socket] = None,
-    parser: Optional[Callable[[bytes], Accum]] = None,
+    parser: Optional[Callable[[bytes], Optional[Accum]]] = None,
     **kwargs: Any,
 ) -> Optional[Accum]:
     return (parser if parser is not None else lambda msg: None)(
@@ -176,7 +202,7 @@ def _link(
 link_add = partial(
     _link,
     RTM_NEWLINK,
-    parser=lambda msg: ifinfomsg(msg).ifi_index if msg else None
+    parser=lambda msg: ifinfomsg(msg).ifi_index if msg else None,
 )
 link_del = partial(_link, RTM_DELLINK)
 
@@ -188,65 +214,87 @@ def get_links(
     if nameonly:
         parser = NlaStruct(
             ifinfomsg(
-                setters={
-                    "ifi_index": _set("index"),
-                    "ifi_flags": _set(
-                        "is_up",
-                        transform=lambda v: bool(v & IFF_UP),
-                    ),
-                }
+                ifi_index=saveas("index"),
+                ifi_flags=saveas(
+                    "is_up",
+                    transform=lambda v: bool(v & IFF_UP),
+                ),
             ),
-            NlaStr(IFLA_IFNAME, setter=_set("name"))
+            NlaStr(IFLA_IFNAME, saveas("name")),
         )
     else:
         parser = NlaStruct(
             ifinfomsg(
-                setters={
-                    "ifi_index": _set("index"),
-                    "ifi_flags": _set(
+                # ifi_index=1,
+                ifi_index=saveas("index"),
+                ifi_flags=(
+                    saveas(
                         "is_up",
                         transform=lambda v: bool(v & IFF_UP),
                     ),
-                },
+                ),
             ),
-            NlaStr(IFLA_IFNAME, setter=_set("name")),
-            NlaInt32(IFLA_LINK, setter=_set("peer")),
-            NlaInt32(IFLA_MASTER, setter=_set("master")),
+            NlaStr(IFLA_IFNAME, saveas("name")),
+            NlaInt32(IFLA_LINK, saveas("peer")),
+            NlaInt32(IFLA_MASTER, saveas("master")),
             NlaNest(
                 IFLA_LINKINFO,
-                NlaStr(IFLA_INFO_KIND, setter=_set("kind")),
+                NlaStr(IFLA_INFO_KIND, saveas("kind")),
                 NlaUnion(
-                    key=lambda accum: accum.kind,
-                    attrs={
-                        "vrf": NlaNest(
-                            IFLA_INFO_DATA,
-                            NlaInt32(IFLA_VRF_TABLE, setter=_set("krt")),
-                        ),
-                        "erspan": NlaNest(
-                            IFLA_INFO_DATA,
-                            *(
-                                erspan_attrs := (
-                                    NlaInt32(
-                                        IFLA_GRE_ERSPAN_VER,
-                                        setter=_set("erspan_ver"),
-                                    ),
-                                    NlaBe32(IFLA_GRE_IKEY, setter=_set("gre_ikey")),
-                                    NlaBe32(IFLA_GRE_OKEY, setter=_set("gre_okey")),
-                                    NlaInt32(IFLA_GRE_LINK, setter=_set("gre_link")),
-                                )
+                    IFLA_INFO_DATA,
+                    resolve=lambda accum: defaultdict(
+                        lambda: raise_exc(StopParsing),
+                        {
+                            "vrf": NlaNest(
+                                IFLA_INFO_DATA,
+                                NlaInt32(IFLA_VRF_TABLE, saveas("krt")),
                             ),
-                            NlaIp4(IFLA_GRE_LOCAL, setter=_set("gre_local")),
-                            NlaIp4(IFLA_GRE_REMOTE, setter=_set("gre_remote")),
-                        ),
-                        "ip6erspan": NlaNest(
-                            IFLA_INFO_DATA,
-                            *erspan_attrs,
-                            NlaIp6(IFLA_GRE_LOCAL, setter=_set("gre_local")),
-                            NlaIp6(IFLA_GRE_REMOTE, setter=_set("gre_remote")),
-                        ),
-                    }
+                            "erspan": NlaNest(
+                                IFLA_INFO_DATA,
+                                *(
+                                    erspan_attrs := (
+                                        NlaInt32(
+                                            IFLA_GRE_ERSPAN_VER,
+                                            saveas("erspan_ver"),
+                                        ),
+                                        NlaBe32(
+                                            IFLA_GRE_IKEY,
+                                            saveas("gre_ikey"),
+                                        ),
+                                        NlaBe32(
+                                            IFLA_GRE_OKEY,
+                                            saveas("gre_okey"),
+                                        ),
+                                        NlaInt32(
+                                            IFLA_GRE_LINK,
+                                            saveas("gre_link"),
+                                        ),
+                                    )
+                                ),
+                                NlaIp4(
+                                    IFLA_GRE_LOCAL,
+                                    saveas("gre_local"),
+                                ),
+                                NlaIp4(
+                                    IFLA_GRE_REMOTE,
+                                    saveas("gre_remote"),
+                                ),
+                            ),
+                            "ip6erspan": NlaNest(
+                                IFLA_INFO_DATA,
+                                *erspan_attrs,
+                                NlaIp6(
+                                    IFLA_GRE_LOCAL,
+                                    saveas("gre_local"),
+                                ),
+                                NlaIp6(
+                                    IFLA_GRE_REMOTE,
+                                    saveas("gre_remote"),
+                                ),
+                            ),
+                        },
+                    )[getattr(accum, "kind")],
                 ),
-                required=True,
             ),
         )
     return list(

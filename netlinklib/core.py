@@ -21,6 +21,7 @@ from typing import (
     Tuple,
     TypeVar,
     Union,
+    cast,
 )
 from ipaddress import IPv4Address, IPv6Address, ip_address
 
@@ -514,16 +515,9 @@ class NlaType:
 class NlaAttr(NlaType):
     """A netlink attribute. Is packed with `rtattr` header."""
 
-    def __init__(
-        self,
-        *args: Any,
-        tag: int = 0,
-        required: bool = False,
-        **kwargs: Any,
-    ) -> None:
+    def __init__(self, *args: Any, tag: int = 0) -> None:
         self.tag = tag
-        self.required = required
-        super().__init__(*args, **kwargs)
+        super().__init__(*args)
 
     @abstractmethod
     def _bytes(self) -> bytes:
@@ -541,33 +535,32 @@ class NlaAttr(NlaType):
 class _NlaScalar(NlaAttr, Generic[T]):
     """
     Scalar version of attribute.
-    User must provide `val` value if the object
-    is to be used as a serializer. If object
-    is used a parser and `val` is provided, it
-    serves as a filter, raising `StopParsing`
-    if parsed value does not match user-provided one.
-    TODO: We may wish to generalize this
-    'accept/reject' parsed value concept, maybe
-    using user provided callback instead...
+    If serializing, user should provide val.
+    If parsing, user can provide any number of callbacks,
+    which can be used to populate accumulators or
+    filter results by raising StopIteration.
     """
 
     def __init__(
         self,
         tag: int,
-        *args: Any,
-        val: Optional[T] = None,
-        callback: Optional[Callable[[T], None]] = None,
-        setter: Optional[Callable[[Accum, T], Accum]] = None,
-        **kwargs: Any,
+        *val_or_callbacks: Union[Optional[T], Callable[[Accum, T], Accum]],
     ) -> None:
-        self.val = val
-        self.callback = (
-            nll_assert(lambda x: x == val)
-            if val is not None and callback is None
-            else callback
-        )
-        self.setter = setter
-        super().__init__(*args, tag=tag, **kwargs)
+        vals = [val for val in val_or_callbacks if not callable(val)]
+        if len(vals) > 1:
+            raise TypeError(f"Too many values provided: {vals}")
+        self.val, *_ = vals if vals else (None,)
+        self.callbacks: List[Callable[[Accum, T], Accum]] = [
+            (
+                obj
+                if callable(obj)
+                else cast(
+                    Callable[[Accum, T], Accum], nll_assert(lambda x: x == obj)
+                )
+            )
+            for obj in val_or_callbacks
+        ]
+        super().__init__(tag=tag)
 
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(tag={self.tag},val={self.val})"
@@ -582,15 +575,15 @@ class _NlaScalar(NlaAttr, Generic[T]):
         """Define decoding method and format."""
 
     def parse(self, accum: Accum, data: bytes) -> Accum:
-        if self.setter is None:
+        if not self.callbacks:
             return accum
         parsed = self.from_bytes(data)
-        if self.callback:
-            self.callback(parsed)
         # mypy is upset that there are two separate Accum typevars
         # "Accum@__init__" and "Accum@parse", even though they
         # _really are_ expressing the same type...
-        return self.setter(accum, parsed)  # type: ignore
+        for callback in self.callbacks:
+            accum = callback(accum, parsed)  # type: ignore
+        return accum
 
 
 class NlaStr(_NlaScalar[str]):
@@ -700,14 +693,11 @@ class NlaUnion(NlaAttr):
 
     def __init__(
         self,
-        *args: Any,
-        key: Callable[[Accum], str],
-        attrs: Dict[Any, NlaAttr],
-        **kwargs: Any,
+        tag: int,
+        resolve: Callable[[Accum], NlaAttr],
     ) -> None:
-        self.key = key
-        self.attrs = attrs
-        super().__init__(*args, **kwargs)
+        self.resolve = resolve
+        super().__init__(tag=tag)
 
     def _bytes(self) -> bytes:
         raise NotImplementedError("NlaUnion is only for parsing.")
@@ -718,16 +708,12 @@ class NlaUnion(NlaAttr):
         # but NlaAttr need it defined for abstract method reasons
         raise NotImplementedError
 
-    def resolve(self, accum: Accum) -> NlaAttr:
-        # can raise KeyError
-        return self.attrs[self.key(accum)]  # type: ignore
-
 
 class _NlaNest(NlaType):
     """Nested NLA list without tag (used as part of NlaStruct)"""
 
     def __init__(self, *nlas: NlaAttr, **kwargs: Any) -> None:
-        self.nlas = nlas
+        self.nlas = {nla.tag: nla for nla in nlas}
         super().__init__(**kwargs)
 
     def __repr__(self) -> str:
@@ -737,35 +723,32 @@ class _NlaNest(NlaType):
         )
 
     def to_bytes(self) -> bytes:
-        return b"".join(nla.to_bytes() for nla in self.nlas)
+        return b"".join(nla.to_bytes() for nla in self.nlas.values())
 
     def parse(self, accum: Accum, data: bytes) -> Accum:
-        attrs: Dict[int, bytes] = {}
         while data:
             try:
                 rta = rtattr(data)
             except StructError as e:
                 raise NllError(e) from e
             increment = (rta.rta_len + 4 - 1) & ~(4 - 1)
-            attrs[rta.rta_type] = rta.remainder[: rta.rta_len - rtattr.SIZE]
+            if rta.rta_type in self.nlas:
+                nla = self.nlas[rta.rta_type]
+                accum = (
+                    nla.resolve(accum)  # type: ignore [arg-type]
+                    if isinstance(nla, NlaUnion)
+                    else nla
+                ).parse(accum, rta.remainder[: rta.rta_len - rtattr.SIZE])
             data = data[increment:]
-        for nla in self.nlas:
-            try:
-                if isinstance(nla, NlaUnion):
-                    nla = nla.resolve(accum)
-                accum = nla.parse(accum, attrs[nla.tag])
-            except KeyError:
-                if nla.required:
-                    raise StopParsing
         return accum
 
 
 class NlaNest(NlaAttr, _NlaNest):
     """A nested NLA list with attribute header/tag."""
 
-    def __init__(self, tag: int, *args: Any, **kwargs: Any) -> None:
+    def __init__(self, tag: int, *args: Any) -> None:
         # Just so that it resembles the other NlaAttrs with tag first
-        super().__init__(*args, tag=tag, **kwargs)
+        super().__init__(*args, tag=tag)
 
     def _bytes(self) -> bytes:
         return _NlaNest.to_bytes(self)
@@ -777,10 +760,9 @@ class NlaStruct(NlaType):
     lists of nested rtas (i.e. contents of RTA_MULTIPATH)
     """
 
-    def __init__(self, struct: NllMsg, *nlas: NlaAttr, **kwargs: Any) -> None:
+    def __init__(self, struct: NllMsg, *nlas: NlaAttr) -> None:
         self.struct = struct
         self.nlas = _NlaNest(*nlas)
-        super().__init__(**kwargs)
 
     def __repr__(self) -> str:
         return (
@@ -821,13 +803,14 @@ class NlaList(NlaAttr):
     def __init__(
         self,
         tag: int,
-        *structs: NlaStruct,
-        setter: Optional[Callable[[Accum, T], Accum]] = None,
+        *args: Union[NlaStruct, Callable[[Accum, bytes], Accum]],
     ) -> None:
         # Struct lists should probably contain all the same type of struct
-        assert len(set(type(s.struct) for s in structs)) < 2
-        self.structs = structs
-        self.setter = setter
+        self.structs = [s for s in args if isinstance(s, NlaStruct)]
+        assert len(set(type(s.struct) for s in self.structs)) < 2
+        self.callbacks: List[Callable[[Accum, bytes], Accum]] = [
+            cb for cb in args if callable(cb)
+        ]
         super().__init__(tag=tag)
 
     def _bytes(self) -> bytes:
@@ -839,4 +822,6 @@ class NlaList(NlaAttr):
         return b""
 
     def parse(self, accum: Accum, data: bytes) -> Accum:
-        return self.setter(accum, data) if self.setter else accum  # type: ignore
+        for callback in self.callbacks:
+            accum = callback(accum, data)  # type: ignore [arg-type,assignment]
+        return accum
