@@ -564,7 +564,9 @@ class _NlaScalar(NlaAttr, Generic[T]):
         super().__init__(tag=tag)
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(tag={self.tag},val={self.val})"
+        return (
+            f"{self.__class__.__name__}(tag={self.tag}, val={repr(self.val)})"
+        )
 
     def to_bytes(self) -> bytes:
         if self.val is None:
@@ -718,10 +720,7 @@ class _NlaNest(NlaType):
         super().__init__(**kwargs)
 
     def __repr__(self) -> str:
-        return (
-            f"{self.__class__.__name__}"
-            f"({','.join(nla.__repr__() for nla in self.nlas)})"
-        )
+        return ", ".join(repr(nla) for nla in self.nlas.values())
 
     def to_bytes(self) -> bytes:
         return b"".join(nla.to_bytes() for nla in self.nlas.values())
@@ -751,6 +750,12 @@ class NlaNest(NlaAttr, _NlaNest):
         # Just so that it resembles the other NlaAttrs with tag first
         super().__init__(*args, tag=tag)
 
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}"
+            f"(tag={self.tag}, {_NlaNest.__repr__(self)})"
+        )
+
     def _bytes(self) -> bytes:
         return _NlaNest.to_bytes(self)
 
@@ -769,7 +774,7 @@ class NlaStruct(NlaType):
     def __repr__(self) -> str:
         return (
             f"{self.__class__.__name__}"
-            f"({self.struct.__repr__()}, {self.nlas.__repr__()})"
+            f"({repr(self.struct)}, {repr(self.nlas)})"
         )
 
     def to_bytes(self) -> bytes:
@@ -794,6 +799,12 @@ class NlaStructRta(NlaStruct, NlaAttr):
 
     def __init__(self, tag: int, *args: Any) -> None:
         super().__init__(*args, tag=tag)
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}"
+            f"(tag={self.tag}, {repr(self.struct)}, {repr(self.nlas)})"
+        )
 
     def _bytes(self) -> bytes:
         return super().to_bytes()
