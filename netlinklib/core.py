@@ -746,7 +746,7 @@ class _NlaNest(NlaType):
 class NlaNest(NlaAttr, _NlaNest):
     """A nested NLA list with attribute header/tag."""
 
-    def __init__(self, tag: int, *args: Any) -> None:
+    def __init__(self, tag: int, *args: NlaAttr) -> None:
         # Just so that it resembles the other NlaAttrs with tag first
         super().__init__(*args, tag=tag)
 
