@@ -1,3 +1,17 @@
+netlinklib (2.1.0) stable; urgency=medium
+
+  [ Eugene Crosser ]
+  * Use `Exception` as parent to NllException
+
+  [ Michael Dickensheets ]
+  * NlaMac: handle empty nla payload
+  * core: remove keyword arguments from NlaTypes
+  * NlaNest: correct type signature
+  * core: export NlaStructRta
+  * core: fix NlaStructRta mro
+
+ -- Michael Dickensheets <michael.dickensheets@ionos.com>  Fri, 10 Jan 2025 12:17:59 +0100
+
 netlinklib (2.0.1) stable; urgency=medium
 
   [ Eugene Crosser ]
