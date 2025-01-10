@@ -761,9 +761,10 @@ class NlaStruct(NlaType):
     lists of nested rtas (i.e. contents of RTA_MULTIPATH)
     """
 
-    def __init__(self, struct: NllMsg, *nlas: NlaAttr) -> None:
+    def __init__(self, struct: NllMsg, *nlas: NlaAttr, **kwargs: Any) -> None:
         self.struct = struct
         self.nlas = _NlaNest(*nlas)
+        super().__init__(**kwargs)
 
     def __repr__(self) -> str:
         return (
@@ -788,7 +789,7 @@ class NlaStruct(NlaType):
         return len(data)
 
 
-class NlaStructRta(NlaAttr, NlaStruct):
+class NlaStructRta(NlaStruct, NlaAttr):
     """Struct + Nla list with own NLA header"""
 
     def __init__(self, tag: int, *args: Any) -> None:
