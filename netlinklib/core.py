@@ -44,6 +44,7 @@ __all__ = (
     "NlaMac",
     "NlaNest",
     "NlaStruct",
+    "NlaStructRta",
     "NlaStr",
     "NlaInt8",
     "NlaUInt8",
@@ -788,7 +789,7 @@ class NlaStruct(NlaType):
 
 
 class NlaStructRta(NlaAttr, NlaStruct):
-    """TODO: Not sure if we have any of these."""
+    """Struct + Nla list with own NLA header"""
 
     def __init__(self, tag: int, *args: Any) -> None:
         super().__init__(*args, tag=tag)
