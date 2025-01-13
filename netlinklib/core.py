@@ -807,7 +807,10 @@ class NlaStructRta(NlaStruct, NlaAttr):
         )
 
     def _bytes(self) -> bytes:
-        return super().to_bytes()
+        return NlaStruct.to_bytes(self)
+
+    def to_bytes(self) -> bytes:
+        return NlaAttr.to_bytes(self)
 
 
 class NlaList(NlaAttr):
