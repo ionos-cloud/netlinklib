@@ -33,6 +33,7 @@ from re import match
 CPP = "/usr/bin/cpp"
 INC = "/usr/include"
 HEADERS = (
+    "linux/if_addr.h",
     "linux/if_link.h",
     "linux/netlink.h",
     "linux/genetlink.h",
