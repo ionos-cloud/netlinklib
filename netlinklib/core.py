@@ -49,12 +49,17 @@ __all__ = (
     "NlaInt8",
     "NlaUInt8",
     "NlaInt16",
+    "NlaBe16",
     "NlaUInt16",
-    "NlaBe32",
+    "NlaUBe16",
     "NlaInt32",
+    "NlaBe32",
     "NlaUInt32",
+    "NlaUBe32",
     "NlaInt64",
+    "NlaBe64",
     "NlaUInt64",
+    "NlaUBe64",
     "NlaUnion",
     "iterate_rtalist",
     "legacy_nll_get_dump",
@@ -628,8 +633,18 @@ class NlaInt16(_NlaInt):
     PACKFMT = "h"
 
 
+class NlaBe16(_NlaInt):
+    BYTEORDER = "big"
+    PACKFMT = "H"
+
+
 class NlaUInt16(_NlaInt):
     BYTEORDER = byteorder
+    PACKFMT = "H"
+
+
+class NlaUBe16(_NlaInt):
+    BYTEORDER = "big"
     PACKFMT = "H"
 
 
@@ -648,13 +663,28 @@ class NlaUInt32(_NlaInt):
     PACKFMT = "I"
 
 
+class NlaUBe32(_NlaInt):
+    BYTEORDER = "big"
+    PACKFMT = "I"
+
+
 class NlaInt64(_NlaInt):
     BYTEORDER = byteorder
     PACKFMT = "q"
 
 
+class NlaBe64(_NlaInt):
+    BYTEORDER = "big"
+    PACKFMT = "q"
+
+
 class NlaUInt64(_NlaInt):
     BYTEORDER = byteorder
+    PACKFMT = "Q"
+
+
+class NlaUBe64(_NlaInt):
+    BYTEORDER = "big"
     PACKFMT = "Q"
 
 
