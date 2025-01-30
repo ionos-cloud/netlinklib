@@ -34,6 +34,7 @@ CPP = "/usr/bin/cpp"
 INC = "/usr/include"
 HEADERS = (
     "linux/if_addr.h",
+    "linux/if_bridge.h",
     "linux/if_link.h",
     "linux/netlink.h",
     "linux/genetlink.h",
@@ -287,7 +288,8 @@ if __name__ == "__main__":
             print(f"#include <{hdr}>", file=out)
         print(CCODE[1], file=out)
         for name in names:
-            print(f'\t{{ "{name}", {name} }},', file=out)
+            if not name.startswith("SYSFS"):  # They are string defs TODO: kill
+                print(f'\t{{ "{name}", {name} }},', file=out)
         print(CCODE[2], file=out)
 
     for infn in HEADERS:
@@ -311,7 +313,7 @@ if __name__ == "__main__":
     classfile += "from struct import unpack\n"
     classfile += "from typing import List\n"
     classfile += "from .datatypes import NllMsg, nlmsgerr"
-    structsize: DictT[str, int] = {}
+    structsize: DictT[str, int] = {"in6_addr": 16}  # TODO kill this hack
     for clname, _elems in structs.items():
         if clname == "nlmsgerr":  # Skip it, we define it by hand elsewhere
             continue
