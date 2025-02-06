@@ -1,11 +1,11 @@
 """ Netlink dump implementation replacement for pyroute2 """
 
 from typing import Callable, Dict, Optional, Union, cast
-from .classes import ifinfomsg
+from .legacy_classes import ifinfomsg
 
 # pylint: disable=wildcard-import, unused-wildcard-import
-from .core import *
-from .datatypes import *
+from .legacy_core import *
+from .legacy_datatypes import *
 from .defs import *
 
 __all__ = ("newlink_parser", "ifindex_parser")

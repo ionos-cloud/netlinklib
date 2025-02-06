@@ -2,6 +2,7 @@ from collections import defaultdict
 from functools import partial
 from ipaddress import ip_address
 from socket import socket
+from struct import unpack
 from typing import (
     Any,
     Callable,
@@ -22,7 +23,7 @@ from netlinklib import *
 
 IFF_UP = 1
 
-Accum = TypeVar("Accum")
+# Accum = TypeVar("Accum")
 
 
 def raise_exc(exc: Union[Exception, Type[Exception]]) -> NoReturn:
@@ -69,7 +70,7 @@ def saveas(
     return _saveas
 
 
-def dummy_attrs() -> Tuple[NlaAttr, ...]:
+def dummy_attrs() -> Tuple[NllAttr, ...]:
     return (NlaStr(IFLA_INFO_KIND, "dummy"),)
 
 
@@ -78,7 +79,7 @@ def erspan_attrs(
     gre_link: Optional[int] = None,
     gre_ikey: Optional[int] = None,
     gre_okey: Optional[int] = None,
-) -> Tuple[NlaAttr, ...]:
+) -> Tuple[NllAttr, ...]:
     return (
         NlaInt32(IFLA_GRE_LINK, gre_link),
         NlaInt32(IFLA_GRE_IFLAGS, (GRE_SEQ | GRE_KEY)),
@@ -93,10 +94,10 @@ def erspan4_attrs(
     gre_local: Optional[str] = None,
     gre_remote: Optional[str] = None,
     **kwargs: Any,
-) -> Tuple[NlaAttr, ...]:
+) -> Tuple[NllAttr, ...]:
     return (
         NlaStr(IFLA_INFO_KIND, "erspan"),
-        NlaNest(
+        NllAttr(
             IFLA_INFO_DATA,
             *erspan_attrs(**kwargs),
             NlaIp4(IFLA_GRE_LOCAL, gre_local),
@@ -109,10 +110,10 @@ def erspan6_attrs(
     gre_local: Optional[str] = None,
     gre_remote: Optional[str] = None,
     **kwargs: Any,
-) -> Tuple[NlaAttr, ...]:
+) -> Tuple[NllAttr, ...]:
     return (
         NlaStr(IFLA_INFO_KIND, "ip6erspan"),
-        NlaNest(
+        NllAttr(
             IFLA_INFO_DATA,
             *erspan_attrs(**kwargs),
             NlaIp6(IFLA_GRE_LOCAL, gre_local),
@@ -121,10 +122,10 @@ def erspan6_attrs(
     )
 
 
-def vrf_attrs(krt: Optional[int] = None) -> Tuple[NlaAttr, ...]:
+def vrf_attrs(krt: Optional[int] = None) -> Tuple[NllAttr, ...]:
     return (
         NlaStr(IFLA_INFO_KIND, "vrf"),
-        NlaNest(IFLA_INFO_DATA, NlaInt32(IFLA_VRF_TABLE, krt)),
+        NllAttr(IFLA_INFO_DATA, NlaInt32(IFLA_VRF_TABLE, krt)),
     )
 
 
@@ -133,10 +134,10 @@ def vxlan_attrs(
     vxlan_local: Optional[str] = None,
     vxlan_learning: Optional[bool] = None,
     vxlan_port: Optional[int] = None,
-) -> Tuple[NlaAttr, ...]:
+) -> Tuple[NllAttr, ...]:
     return (
         NlaStr(IFLA_INFO_KIND, "vxlan"),
-        NlaNest(
+        NllAttr(
             IFLA_INFO_DATA,
             NlaInt32(IFLA_VXLAN_ID, vxlan_id),
             NlaIp4(IFLA_VXLAN_LOCAL, vxlan_local),
@@ -154,18 +155,18 @@ def link_attrs(
     peer: Optional[int] = None,
     master: Optional[int] = None,
     **kwargs: Any,
-) -> NlaStruct:
-    return NlaStruct(
+) -> NllMsg:
+    return NllMsg(
         ifinfomsg(ifi_index=ifindex, ifi_flags=IFF_UP if up else 0),
         NlaStr(IFLA_IFNAME, name),
         NlaInt32(IFLA_LINK, peer),
         NlaInt32(IFLA_MASTER, master),
         *(
             (
-                NlaNest(
+                NllAttr(
                     IFLA_LINKINFO,
                     *cast(
-                        Dict[str, Callable[..., Tuple[NlaAttr, ...]]],
+                        Dict[str, Callable[..., Tuple[NllAttr, ...]]],
                         {
                             "dummy": dummy_attrs,
                             "erspan": erspan4_attrs,
@@ -192,7 +193,7 @@ def _link(
         nll_transact(
             msg_type,
             msg_type,
-            link_attrs(**kwargs).to_bytes(),
+            link_attrs(**kwargs),
             sk=sk,
             flags=NLM_F_CREATE | (NLM_F_ECHO if parser else 0),
         )
@@ -202,7 +203,11 @@ def _link(
 link_add = partial(
     _link,
     RTM_NEWLINK,
-    parser=lambda msg: ifinfomsg(msg).ifi_index if msg else None,
+    parser=lambda msg: (
+        NllMsg(ifinfomsg(ifi_index=lambda _, v: v)).parse(0, msg)[0]
+        if msg
+        else None
+    ),
 )
 link_del = partial(_link, RTM_DELLINK)
 
@@ -212,7 +217,7 @@ def get_links(
     sk: Optional[socket] = None,
 ) -> List[LinkAccum]:
     if nameonly:
-        parser = NlaStruct(
+        parser = NllMsg(
             ifinfomsg(
                 ifi_index=saveas("index"),
                 ifi_flags=saveas(
@@ -223,21 +228,19 @@ def get_links(
             NlaStr(IFLA_IFNAME, saveas("name")),
         )
     else:
-        parser = NlaStruct(
+        parser = NllMsg(
             ifinfomsg(
                 # ifi_index=1,
                 ifi_index=saveas("index"),
-                ifi_flags=(
-                    saveas(
-                        "is_up",
-                        transform=lambda v: bool(v & IFF_UP),
-                    ),
+                ifi_flags=saveas(
+                    "is_up",
+                    transform=lambda v: bool(v & IFF_UP),
                 ),
             ),
             NlaStr(IFLA_IFNAME, saveas("name")),
             NlaInt32(IFLA_LINK, saveas("peer")),
             NlaInt32(IFLA_MASTER, saveas("master")),
-            NlaNest(
+            NllAttr(
                 IFLA_LINKINFO,
                 NlaStr(IFLA_INFO_KIND, saveas("kind")),
                 NlaUnion(
@@ -245,11 +248,11 @@ def get_links(
                     resolve=lambda accum: defaultdict(
                         lambda: raise_exc(StopParsing),
                         {
-                            "vrf": NlaNest(
+                            "vrf": NllAttr(
                                 IFLA_INFO_DATA,
                                 NlaInt32(IFLA_VRF_TABLE, saveas("krt")),
                             ),
-                            "erspan": NlaNest(
+                            "erspan": NllAttr(
                                 IFLA_INFO_DATA,
                                 *(
                                     erspan_attrs := (
@@ -280,7 +283,7 @@ def get_links(
                                     saveas("gre_remote"),
                                 ),
                             ),
-                            "ip6erspan": NlaNest(
+                            "ip6erspan": NllAttr(
                                 IFLA_INFO_DATA,
                                 *erspan_attrs,
                                 NlaIp6(
@@ -301,8 +304,8 @@ def get_links(
         nll_get_dump(
             RTM_GETLINK,
             RTM_NEWLINK,
-            NlaStruct(ifinfomsg()).to_bytes(),
-            lambda: LinkAccum(),
+            NllMsg(ifinfomsg()),
+            LinkAccum,
             parser.parse,
             sk=sk,
         )
@@ -340,8 +343,8 @@ if __name__ == "__main__":
         )
     finally:
         pprint(list(get_links()))
-        link_del(name="myersp")
         link_del(name="myvrf")
+        link_del(name="myersp")
         link_del(name="mydummy")
 
     """

@@ -2,7 +2,7 @@
 
 from functools import partial
 from typing import Callable, Dict, List, Literal, Optional, Tuple, Type, Union
-from .classes import (
+from .legacy_classes import (
     tc_estimator,
     tc_htb_glob,
     tc_fifo_qopt,
@@ -17,8 +17,8 @@ from .classes import (
 )
 
 # pylint: disable=wildcard-import, unused-wildcard-import
-from .core import *
-from .datatypes import *
+from .legacy_core import *
+from .legacy_datatypes import *
 from .defs import *
 
 __all__ = ("newqdisc_parser", "newtclass_parser", "newtfilter_parser")

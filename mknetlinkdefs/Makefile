@@ -9,7 +9,7 @@ all: ../netlinklib/defs.py ../netlinklib/classes.py
 mkdefs: mkdefs.c
 
 mkdefs.c: mknetlinkdefs.py
-	python3 mknetlinkdefs.py ../netlinklib/classes.py
+	python3 mknetlinkdefs.py ../netlinklib/classes.py ../netlinklib/legacy_classes.py
 
 clean:
 	rm -f mkdefs.c mkdefs

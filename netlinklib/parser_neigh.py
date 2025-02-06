@@ -1,11 +1,11 @@
 """ Netlink dump implementation replacement for pyroute2 """
 
 from typing import Dict, Union
-from .classes import ndmsg
+from .legacy_classes import ndmsg
 
 # pylint: disable=wildcard-import, unused-wildcard-import
-from .core import *
-from .datatypes import *
+from .legacy_core import *
+from .legacy_datatypes import *
 from .defs import *
 
 __all__ = ("newneigh_parser",)

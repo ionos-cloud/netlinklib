@@ -11,13 +11,13 @@ from typing import (
     Optional,
     Union,
 )
-from .classes import (
+from .legacy_classes import (
     ndmsg,
 )
 
 # pylint: disable=wildcard-import, unused-wildcard-import
-from .core import *
-from .datatypes import *
+from .legacy_core import *
+from .legacy_datatypes import *
 from .defs import *
 from .parser_neigh import newneigh_parser
 
@@ -30,7 +30,7 @@ def nll_get_neigh(
     **kwargs: Any,
 ) -> Iterable[Dict[str, Union[str, int]]]:
     """Public function to get all ND cache"""
-    return legacy_nll_get_dump(
+    return nll_get_dump(
         RTM_GETNEIGH,
         RTM_NEWNEIGH,
         ndmsg(ndm_family=family).bytes,

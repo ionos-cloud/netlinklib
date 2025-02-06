@@ -16,13 +16,13 @@ from typing import (
     TypeVar,
     Union,
 )
-from .classes import (
+from .legacy_classes import (
     ifinfomsg,
 )
 
 # pylint: disable=wildcard-import, unused-wildcard-import
-from .core import *
-from .datatypes import *
+from .legacy_core import *
+from .legacy_datatypes import *
 from .defs import *
 from .parser_link import *
 
@@ -122,7 +122,7 @@ def _nll_link(
         }
         if kind in link_info_attrs:
             link_info += pack_attr(IFLA_INFO_DATA, link_info_attrs[kind])
-    ret = legacy_nll_transact(
+    ret = nll_transact(
         msg_type,
         msg_type,
         ifinfomsg(ifi_index=ifindex, ifi_flags=IFF_UP if up else 0).bytes,
@@ -153,7 +153,7 @@ def nll_get_links(
     nameonly: bool = False,
 ) -> Iterable[Dict[str, Union[str, int]]]:
     """Public function to get all interfaces"""
-    return legacy_nll_get_dump(
+    return nll_get_dump(
         RTM_GETLINK,
         RTM_NEWLINK,
         ifinfomsg().bytes,
@@ -169,7 +169,7 @@ def nll_link_lookup(
 ) -> Optional[int]:
     """Find ifindex by name"""
     try:
-        msg = legacy_nll_transact(
+        msg = nll_transact(
             RTM_GETLINK,
             RTM_NEWLINK,
             ifinfomsg().bytes,

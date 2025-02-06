@@ -8,14 +8,14 @@ from typing import (
     Set,
     Union,
 )
-from .classes import (
+from .legacy_classes import (
     rtnexthop,
     rtmsg,
 )
 
 # pylint: disable=wildcard-import, unused-wildcard-import
-from .core import *
-from .datatypes import *
+from .legacy_core import *
+from .legacy_datatypes import *
 from .defs import *
 
 __all__ = ("newroute_parser",)
