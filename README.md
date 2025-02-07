@@ -1,4 +1,4 @@
-# Netlinklib - speed-optimised netlink operations in Python
+# Netlinklib - speed-optimized netlink operations in Python
 
 This library is basically an alternative to
 [pyroute2](https://github.com/svinota/pyroute2/),
@@ -6,31 +6,38 @@ only _much_ more rudimentary, but also significantly faster.
 
 ## Motivation
 
-The problem with pure Python impementation of netlink "dump" operations
+The problem with pure Python implementation of netlink "dump" operations
 is that on a system with many kernel objects in the dump (such as routes,
-or neighbour cache elements), parsing all the messages in the dump becomes
+or neighbor cache elements), parsing all the messages in the dump becomes
 quite expensive.
 
 Our answer to this challenge is to _not_ parse elements of the messages
 that we don't need.
 
-## Implementation
+## Conceptual design
 
-The high level, user visible, API should be considered a work in progress.
-Just the functions that were needed for a particular bigger project are
-implemented.  Whereas the low level API is where the speed magic comes to
-life.
+The library can be thought of as a parser combinator library. It offers
+a DSL (that consists of Python classes) to construct the parser for
+received messages. Parser has a signature
 
-The idea is to allow a user-supplied collector function run over each of
-the TLAs of the message and update an accumulator object on the way. TLAs
-that the user don't need will be jumped over without parsing them. Nested
-TLAs will be descended into only if the collector function decides that
-it is necessary (and supplies a new collector function for the nested
-elements).
+```
+parse(accum: Accumulator, data: bytes) -> Tuple[Accumulator, bytes]: ...
+```
 
-User visible API and examples of "collector functions" reside in the "glue"
-module, `__init__.py`. Low level parser infrastructure - in the `core.py`
-module.
+Accumulator can be any user-provided type, e.g. a dict or a data object.
+Parser consumes some bytes from the supplied slice, updates the accumulator,
+and returns a tuple of the modified accumulator and the remaining slice of
+bytes that remained unparsed.
+
+For a message with hierarchical structure (like most of netlink messages),
+a parser can be constructed that knows which subtrees to descend into,
+and which attribute values to collect in the accumulator. Other parts of
+the message will be jumped over, saving resources. In addition, the
+parser can raise an exception `StopParsing`, and then the result of
+partial parse will not be included in the results.
+
+Same classes that are used to define parsers can serve the second purpose
+of constructing and serializing a message to be sent.
 
 ## Extra features and missing features
 
@@ -51,4 +58,5 @@ functions (or supplied by the end user).
 
 ## High Level API
 
-TBD. Refer to the code in the `__init__.py` module in the meantime.
+Documentation TBD. Refer to the code in the "examples" directory in the
+meantime.
