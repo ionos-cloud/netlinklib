@@ -72,14 +72,17 @@ class NllMsg:
         for attr in self.__slots__:
             if attr == "remainder":
                 continue
-            elif hints[attr] is int:
-                setattr(self, attr, 0)
-            else:
-                raise TypeError(
-                    f"Missing non-integer kwarg {attr}"
-                    f" of type {hints[attr]}"
-                    f" for {self.__class__.__name__},"
-                )
+            try:
+                setattr(self, attr, kwargs[attr])
+            except KeyError as e:
+                if hints[attr] is int:
+                    setattr(self, attr, 0)
+                else:
+                    raise TypeError(
+                        f"Missing non-integer kwarg {e.args[0]}"
+                        f" of type {hints[attr]}"
+                        f" for {self.__class__.__name__},"
+                    ) from e
 
     def __repr__(self) -> str:
         return (
