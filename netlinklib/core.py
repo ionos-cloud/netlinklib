@@ -407,6 +407,33 @@ class NlaMac(_NlaScalar[str]):
 ############################################################
 
 
+def Done(NllMsg):
+    """pseudo message to handle NLMSG_DONE"""
+
+    tag: NLMSG_DONE
+
+    def parse(self, accum: Accum, data: bytes) -> Tuple[Accum, bytes]:
+        raise StopIteration
+
+
+def mk_parser(req: NllMsg, *parsers: NllMsg, accum: Callable[[], Accum]) -> Iterator[Accum]:
+    return NllMsg(
+        nlmsghdr(),
+        NllMsg(
+            nlmsgerr(
+                error=lambda _, code: raise_exc(NllError(code, strerror(-code)))
+            ),
+            tag=NLMSG_ERROR,
+        ),
+        Done(),
+        *parsers,
+        size_field="nlmsg_len",
+        tag_field="nlmsg_type",
+    )
+
+
+
+
 def _messages(sk: socket) -> Iterator[Tuple[int, int, int, int, bytes]]:
     """
     Iterator to return sequence of nl messages read from the socket.
