@@ -151,7 +151,9 @@ class NllMsg:
             if callback is not None:
                 accum = callback(accum, val)
         msg_size = (
-            hdr_vals[self.size_idx] if self.size_idx is not None else len(data)
+            hdr_vals[self.size_idx]
+            if self.size_idx is not None
+            else len(data) if self.args else self.hdr.SIZE
         )
         return (
             self.parse_payload(
@@ -215,7 +217,11 @@ class NllAttr(NllMsg):
         )
 
     def __bytes__(self) -> bytes:
-        return super().__bytes__().ljust((self.size + 4 - 1) & ~(4 - 1), b"\0")
+        return (
+            super().__bytes__().ljust((self.size + 4 - 1) & ~(4 - 1), b"\0")
+            if self.size > 4
+            else b""
+        )
 
 
 class NlaUnion(NllAttr):
@@ -490,17 +496,15 @@ def nll_get_dump(
                 continue
 
     msg = bytes(
-        NllMsg(
-            nlmsghdr(
-                nlmsg_len=nlmsghdr.SIZE + len(bytes(rtgenmsg)),
-                nlmsg_type=typ,
-                nlmsg_flags=NLM_F_REQUEST | NLM_F_DUMP,
-                nlmsg_seq=1,
-                nlmsg_pid=getpid(),
-            ),
-            rtgenmsg,
+        nlmsghdr(
+            nlmsg_len=nlmsghdr.SIZE + len(bytes(rtgenmsg)),
+            nlmsg_type=typ,
+            nlmsg_flags=NLM_F_REQUEST | NLM_F_DUMP,
+            nlmsg_seq=1,
+            nlmsg_pid=getpid(),
         )
-    )
+    ) + bytes(rtgenmsg)
+
     if sk is None:
         with socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE) as owns:
             owns.setsockopt(SOL_NETLINK, NETLINK_GET_STRICT_CHK, 1)
@@ -524,17 +528,15 @@ def nll_transact(
     """
 
     msg = bytes(
-        NllMsg(
-            nlmsghdr(
-                nlmsg_len=nlmsghdr.SIZE + len(bytes(rtgenmsg)),
-                nlmsg_type=typ,
-                nlmsg_flags=NLM_F_REQUEST | NLM_F_ACK | flags,
-                nlmsg_seq=1,
-                nlmsg_pid=getpid(),
-            ),
-            rtgenmsg,
-        )
-    )
+        nlmsghdr(
+            nlmsg_len=nlmsghdr.SIZE + len(bytes(rtgenmsg)),
+            nlmsg_type=typ,
+            nlmsg_flags=NLM_F_REQUEST | NLM_F_ACK | flags,
+            nlmsg_seq=1,
+            nlmsg_pid=getpid(),
+        ),
+    ) + bytes(rtgenmsg)
+
     if sk is None:
         with socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE) as owns:
             return next(_nll_send(owns, msg, rtyp))
@@ -581,4 +583,4 @@ def nll_listen(
             accum, parser = accum_parser[msg_type]
         except KeyError:
             raise NllError(f"No parser for message type {msg_type}")
-        yield (msg_type, parser(accum(), message))
+        yield (msg_type, parser(accum(), message)[0])  # type: ignore
