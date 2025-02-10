@@ -101,6 +101,9 @@ class NllMsg:
     ) -> None:
         self.hdr = hdr
         self.args = args
+        # Use struct field names to determine the indexes of
+        # the values retrieved during unpack() operation
+        # and save for use in parsing.
         indexes = dict(map(reversed, enumerate(hdr)))  # type: ignore
         self.size_idx = indexes.get(size_field)
         self.tag_idx = indexes.get(tag_field)
@@ -136,6 +139,13 @@ class NllMsg:
         return b"".join(bytes(arg) for arg in self.args)
 
     def parse(self, accum: Accum, data: bytes) -> Tuple[Accum, bytes]:
+        """
+        Given accumulator object and unparsed bytestring, consume
+        1) header section using callbacks to fill accumulator or
+        abort using StopParsing and 2) payload section, if one exists.
+        Returns updated accumulator and whatever remains of the blob.
+        """
+
         hdr_vals = unpack(self.hdr.PACKFMT, data[: self.hdr.SIZE])
         for callback, val in zip(self.hdr_callbacks, hdr_vals):
             if callback is not None:
@@ -465,6 +475,11 @@ def nll_get_dump(
 ) -> Iterator[Accum]:
     """
     Run netlink "dump" opeartion.
+    typ  - netlink message type in nlmsghdr
+    rtyp - expected return message type in nlmsghdr
+    rtgenmsg - request message to be sent
+    accum - constructor for accumulator object to be used during parsing
+    parser - callable to consume incoming messages and populate accumulator
     """
 
     def _parse(dump: Iterator[bytes]) -> Iterator[Accum]:
@@ -501,7 +516,13 @@ def nll_transact(
     sk: Optional[socket] = None,
     flags: int = 0,
 ) -> bytes:
-    """Send message and receive response"""
+    """
+    Send message and receive response.
+    Args same as nll_dump except for optional additional flags
+    for nlmsghdr construction. Returns raw message bytes
+    which can be parsed on the user side.
+    """
+
     msg = bytes(
         NllMsg(
             nlmsghdr(
