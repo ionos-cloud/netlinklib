@@ -107,29 +107,11 @@ class NllMsg:
         indexes = dict(map(reversed, enumerate(hdr)))  # type: ignore
         self.size_idx = indexes.get(size_field)
         self.tag_idx = indexes.get(tag_field)
-
         self.hdr_callbacks = tuple(
             kwarg if callable(kwarg) else None for field, kwarg in hdr.items()
         )
-
         self.dispatcher: Optional[_Dispatcher] = (
-            _Dispatcher(
-                args[0],
-                {
-                    arg.tag: (
-                        (
-                            lambda accum, data, arg=arg: (  # type: ignore
-                                arg.resolve(accum).parse_payload(accum, data)
-                            )
-                        )
-                        if isinstance(arg, NlaUnion)
-                        else arg.parse_payload
-                    )
-                    for arg in args
-                },
-            )
-            if args
-            else None
+            _Dispatcher(*args) if args else None
         )
 
     def __bytes__(self) -> bytes:
@@ -176,22 +158,32 @@ class NllMsg:
 class _Dispatcher(NllMsg):
     """Pseudo-msg which conditionally parses based on tag value."""
 
-    def __init__(
-        self,
-        msg: NllMsg,
-        payload_parsers: Dict[Any, Callable[[Accum, bytes], Accum]],
-    ) -> None:
+    def __init__(self, *args: NllMsg) -> None:
+        assert args
+        msg, *_ = args
+        self.args = ()
         self.hdr = msg.hdr
         self.hdr_callbacks = msg.hdr_callbacks  # TODO: is this right?
         self.size_idx = msg.size_idx
         self.tag_idx = msg.tag_idx
-        self.payload_parsers = payload_parsers
+        self.payload_parsers: Dict[Any, Callable[[Accum, bytes], Accum]] = {
+            arg.tag: (
+                (
+                    lambda accum, data, arg=arg: (  # type: ignore
+                        arg.resolve(accum).parse_payload(accum, data)
+                    )
+                )
+                if isinstance(arg, NlaUnion)
+                else arg.parse_payload
+            )
+            for arg in args
+        }
 
     def parse_payload(
         self, accum: Accum, data: bytes, tag: Optional[int] = None
     ) -> Accum:
         return (
-            self.payload_parsers[tag](accum, data)  # type: ignore
+            self.payload_parsers[tag](accum, data)
             if tag in self.payload_parsers
             else accum
         )
