@@ -67,14 +67,18 @@ Final form of functions handling dumps, transactions and event handling are stil
 
 This is the base datatype used for the automatic class generation in `mknetlinkdefs` and is a subclass of `dict`. Subclasses have `SIZE` attribute used during parsing as well as `PACKFMT` in `struct` format used in both parsing and serialization procedures.
 
-This class is not used directly. Only generated subclasses should be used.
+This class serves as a parent for generated subclasses, and is not used
+directly. Only generated subclasses should be used.
 
 Instances may be passed either values of type `T` (for serializing) or callbacks of type
 ```
 callback(accum: Accumulator, val: T) -> Accumulator
 ```
-for parsing. Callbacks are used to update the accumulator, raise StopParsing to end parsing of current message, or any other functionality needed by the user.
+for parsing. These functions are called when an element is encountered in the message that is being parsed, and can update the accumulator, raise StopParsing to end parsing of current message, or have any other functionality needed by the user.
 
+`Accumulator` can be any object type provided by the user, that is suitable for storing parsed data, for example a simple `dict`, or a data object.
+
+An instance initialized with callbacks can only be used for parsing (not for serialization), and conversely, instance initialized with values can only be used for serialization.
 
 ### NllMsg
 
@@ -115,7 +119,7 @@ Special NllAttr subtype. Used to handle parsing situations where contents of one
 
 Takes `resolve: Callable[[Accumulator], NllMsg]` argument during instation. This function is called during parsing to substitute the union type with the proper `NllMsg` depending on the contents of the accumulator.
 
-### Scalar Attributes (Nla___)
+### Scalar Attributes (Nla\_\_\_)
 Special versions of NllAttr. Instead of sequence of `NllMsg` as payload, these parse/encode single scalar values (integers, strings, IP addresses, etc.). See `core.py` for full list of scalar types.
 
 Each take during construction either a value (for encoding) or a callback (for parsing), similar to `NllHdr`.
