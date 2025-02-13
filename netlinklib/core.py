@@ -90,17 +90,17 @@ class NllMsg:
     manner, selecting correct parser using the field indicated by "tag".
     """
 
-    tag: Optional[int] = None
-
     def __init__(
         self,
         hdr: NllHdr,
         *args: "NllMsg",
         size_field: Optional[str] = None,
         tag_field: Optional[str] = None,
+        tag: Optional[int] = None,
     ) -> None:
         self.hdr = hdr
         self.args = args
+        self.tag = tag
         # Use struct field names to determine the indexes of
         # the values retrieved during unpack() operation
         # and save for use in parsing.
@@ -195,7 +195,6 @@ class NllAttr(NllMsg):
     def __init__(
         self, tag: int, *args: NllMsg, size: Optional[int] = None
     ) -> None:
-        self.tag = tag
         self.size = (
             2
             + 2
@@ -206,6 +205,7 @@ class NllAttr(NllMsg):
             *args,
             size_field="rta_len",
             tag_field="rta_type",
+            tag=tag,
         )
 
     def __bytes__(self) -> bytes:
