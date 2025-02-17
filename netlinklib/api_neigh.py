@@ -21,9 +21,12 @@ from .legacy_datatypes import *
 from .defs import *
 from .parser_neigh import newneigh_parser
 
+from .deprecate import deprecated
+
 __all__ = ("nll_get_neigh",)
 
 
+@deprecated
 def nll_get_neigh(
     socket: Optional[socket] = None,  # pylint: disable=redefined-outer-name
     family: int = AF_BRIDGE,

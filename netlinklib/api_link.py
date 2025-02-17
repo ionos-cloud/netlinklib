@@ -26,6 +26,8 @@ from .legacy_datatypes import *
 from .defs import *
 from .parser_link import *
 
+from .deprecate import deprecated
+
 __all__ = "nll_link_add", "nll_link_del", "nll_get_links", "nll_link_lookup"
 
 IFF_UP = 1
@@ -144,10 +146,13 @@ def _nll_link(
     return None
 
 
-nll_link_add = partial(_nll_link, RTM_NEWLINK, parser=ifindex_parser)
-nll_link_del = partial(_nll_link, RTM_DELLINK)
+nll_link_add = deprecated(
+    partial(_nll_link, RTM_NEWLINK, parser=ifindex_parser)
+)
+nll_link_del = deprecated(partial(_nll_link, RTM_DELLINK))
 
 
+@deprecated
 def nll_get_links(
     socket: Optional[socket] = None,  # pylint: disable=redefined-outer-name
     nameonly: bool = False,
@@ -163,6 +168,7 @@ def nll_get_links(
     )
 
 
+@deprecated
 def nll_link_lookup(
     ifname: str,
     socket: Optional[socket] = None,  # pylint: disable=redefined-outer-name

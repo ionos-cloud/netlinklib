@@ -29,6 +29,8 @@ from .legacy_datatypes import *
 from .defs import *
 from .parser_route import newroute_parser
 
+from .deprecate import deprecated
+
 __all__ = "nll_get_routes", "nll_route_add", "nll_route_del"
 
 
@@ -107,10 +109,11 @@ def _nll_route(  # pylint: disable=too-many-arguments, too-many-locals
     )
 
 
-nll_route_add = partial(_nll_route, RTM_NEWROUTE)
-nll_route_del = partial(_nll_route, RTM_DELROUTE)
+nll_route_add = deprecated(partial(_nll_route, RTM_NEWROUTE))
+nll_route_del = deprecated(partial(_nll_route, RTM_DELROUTE))
 
 
+@deprecated
 def nll_get_routes(  # pylint: disable=too-many-arguments
     socket: Optional[socket] = None,  # pylint: disable=redefined-outer-name
     family: int = AF_UNSPEC,

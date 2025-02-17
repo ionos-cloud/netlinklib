@@ -32,6 +32,8 @@ from .legacy_datatypes import *
 from .defs import *
 from .parser_tc import newtfilter_parser, newqdisc_parser, newtclass_parser
 
+from .deprecate import deprecated
+
 __all__ = (
     "nll_get_filters",
     "nll_get_qdiscs",
@@ -94,6 +96,7 @@ def _nll_tc_dump(
 
 
 # only filter object has the GET operation (and probably not very useful).
+@deprecated
 def nll_filter_get(
     ifindex: int,
     kind: str,
@@ -392,31 +395,41 @@ def _nll_tc_op(
 
 
 # Dumps
-nll_get_qdiscs = partial(
-    _nll_tc_dump, RTM_GETQDISC, RTM_NEWQDISC, newqdisc_parser, 0
+nll_get_qdiscs = deprecated(
+    partial(_nll_tc_dump, RTM_GETQDISC, RTM_NEWQDISC, newqdisc_parser, 0)
 )
-nll_get_filters = partial(
-    _nll_tc_dump, RTM_GETTFILTER, RTM_NEWTFILTER, newtfilter_parser
+nll_get_filters = deprecated(
+    partial(_nll_tc_dump, RTM_GETTFILTER, RTM_NEWTFILTER, newtfilter_parser)
 )
-nll_get_classes = partial(
-    _nll_tc_dump, RTM_GETTCLASS, RTM_NEWTCLASS, newtclass_parser
+nll_get_classes = deprecated(
+    partial(_nll_tc_dump, RTM_GETTCLASS, RTM_NEWTCLASS, newtclass_parser)
 )
 
 # Individual object ops
-nll_qdisc_add = partial(_nll_tc_op, RTM_NEWQDISC, NLM_F_CREATE | NLM_F_EXCL)
-nll_qdisc_change = partial(_nll_tc_op, RTM_NEWQDISC, 0)
-nll_qdisc_replace = partial(
-    _nll_tc_op, RTM_NEWQDISC, NLM_F_CREATE | NLM_F_REPLACE
+nll_qdisc_add = deprecated(
+    partial(_nll_tc_op, RTM_NEWQDISC, NLM_F_CREATE | NLM_F_EXCL)
 )
-nll_qdisc_link = partial(_nll_tc_op, RTM_NEWQDISC, NLM_F_REPLACE)
-nll_qdisc_del = partial(_nll_tc_op, RTM_DELQDISC, 0)
+nll_qdisc_change = deprecated(partial(_nll_tc_op, RTM_NEWQDISC, 0))
+nll_qdisc_replace = deprecated(
+    partial(_nll_tc_op, RTM_NEWQDISC, NLM_F_CREATE | NLM_F_REPLACE)
+)
+nll_qdisc_link = deprecated(partial(_nll_tc_op, RTM_NEWQDISC, NLM_F_REPLACE))
+nll_qdisc_del = deprecated(partial(_nll_tc_op, RTM_DELQDISC, 0))
 
-nll_class_add = partial(_nll_tc_op, RTM_NEWTCLASS, NLM_F_CREATE | NLM_F_EXCL)
-nll_class_change = partial(_nll_tc_op, RTM_NEWTCLASS, 0)
-nll_class_replace = partial(_nll_tc_op, RTM_NEWTCLASS, NLM_F_CREATE)
-nll_class_del = partial(_nll_tc_op, RTM_DELTCLASS, 0)
+nll_class_add = deprecated(
+    partial(_nll_tc_op, RTM_NEWTCLASS, NLM_F_CREATE | NLM_F_EXCL)
+)
+nll_class_change = deprecated(partial(_nll_tc_op, RTM_NEWTCLASS, 0))
+nll_class_replace = deprecated(
+    partial(_nll_tc_op, RTM_NEWTCLASS, NLM_F_CREATE)
+)
+nll_class_del = deprecated(partial(_nll_tc_op, RTM_DELTCLASS, 0))
 
-nll_filter_add = partial(_nll_tc_op, RTM_NEWTFILTER, NLM_F_CREATE | NLM_F_EXCL)
-nll_filter_change = partial(_nll_tc_op, RTM_NEWTFILTER, 0)
-nll_filter_replace = partial(_nll_tc_op, RTM_NEWTFILTER, NLM_F_CREATE)
-nll_filter_del = partial(_nll_tc_op, RTM_DELTFILTER, 0)
+nll_filter_add = deprecated(
+    partial(_nll_tc_op, RTM_NEWTFILTER, NLM_F_CREATE | NLM_F_EXCL)
+)
+nll_filter_change = deprecated(partial(_nll_tc_op, RTM_NEWTFILTER, 0))
+nll_filter_replace = deprecated(
+    partial(_nll_tc_op, RTM_NEWTFILTER, NLM_F_CREATE)
+)
+nll_filter_del = deprecated(partial(_nll_tc_op, RTM_DELTFILTER, 0))
