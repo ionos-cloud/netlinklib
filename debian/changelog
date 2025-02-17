@@ -1,3 +1,33 @@
+netlinklib (2.2.0) stable; urgency=medium
+
+  [ Eugene Crosser ]
+  * Clean up and harmonise repr's of NlaAttr classes
+  * dirty fix for NlaStructRta - PLEASE RESET!
+  * Add more big endian NLA types
+  * Include header linux/if_addr.h for IFA_* defs
+  * Support bridge NLAs and struct.
+
+  [ Michael Dickensheets ]
+  * class reorganization: introduce (new) NllMsg
+
+  [ Eugene Crosser ]
+  * Update README to reflect the "new" API
+
+  [ Michael Dickensheets ]
+  * legacy_datatypes: fix broken header construction
+  * core: more informatative commentary
+  * fixes: event listener and non-attr message parsing
+  * core: fix missing  member in _Dispatcher
+  * expand README
+
+  [ Eugene Crosser ]
+  * Minor additions to README
+
+  [ Michael Dickensheets ]
+  * core: make NllMsg tag settable by kwarg
+
+ -- Michael Dickensheets <michael.dickensheets@ionos.com>  Mon, 17 Feb 2025 10:27:18 +0100
+
 netlinklib (2.1.0) stable; urgency=medium
 
   [ Eugene Crosser ]
