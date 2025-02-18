@@ -161,7 +161,7 @@ class _Dispatcher(NllMsg):
     def __init__(self, *args: NllMsg) -> None:
         assert args
         msg, *_ = args
-        self.args = ()
+        self.args = msg.args
         self.hdr = msg.hdr
         self.hdr_callbacks = msg.hdr_callbacks  # TODO: is this right?
         self.size_idx = msg.size_idx
