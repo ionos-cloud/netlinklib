@@ -4,9 +4,11 @@ from abc import abstractmethod
 from collections import ChainMap
 from functools import partial, reduce
 from os import getpid, strerror
+from selectors import EVENT_READ, DefaultSelector
 from socket import AF_NETLINK, NETLINK_ROUTE, SOCK_NONBLOCK, SOCK_RAW, socket
 from struct import error as StructError, pack, unpack
 from sys import byteorder
+from types import SimpleNamespace
 from typing import (
     Any,
     Callable,
@@ -54,6 +56,7 @@ __all__ = (
     "NllException",
     "NllMsg",
     "StopParsing",
+    "nll_batch",
     "nll_get_dump",
     "nll_listen",
     "nll_make_event_listener",
@@ -429,31 +432,33 @@ def _messages(sk: socket) -> Iterator[Tuple[int, int, int, int, bytes]]:
             buf = buf[msg_len:]
 
 
-def _nll_send(
-    sk: socket,
-    rtgenmsg: bytes,
-    rtyp: int,
-) -> Iterator[bytes]:
-    """
-    Run netlink "dump" opeartion.
-    """
-    try:
-        rc = sk.sendto(rtgenmsg, (0, 0))
-    except OSError as e:
-        raise NllError(e) from e
-    if rc < 0:
-        raise NllError(f"netlink send rc={rc}")
+def _nll_send(sk: socket, *msgs: bytes) -> None:
+    for msg in msgs:
+        try:
+            rc = sk.sendto(msg, (0, 0))
+        except OSError as e:
+            raise NllError(e) from e
+        if rc < 0:
+            raise NllError(f"netlink send rc={rc}")
+
+
+def _nll_recv(sk: socket, rtyp: int) -> Iterator[bytes]:
     dump_interrupted = False
     for msg_type, flags, seq, pid, message in _messages(sk):
         if msg_type == NLMSG_NOOP:
             # print("no-op")
             continue
         if msg_type == NLMSG_ERROR:
-            code = NllMsg(nlmsgerr(error=lambda _, v: v)).parse(0, message)[0]
-            if code:
-                raise NllError(code, f"{rtgenmsg!r}: {strerror(-code)}")
+            err = NllMsg(
+                nlmsgerr(
+                    error=lambda a, v: setattr(a, "code", v) or a,  # type: ignore [func-returns-value]
+                    msg=lambda a, v: setattr(a, "msg", v) or a,  # type: ignore [func-returns-value]
+                )
+            ).parse(SimpleNamespace(), message)[0]
+            if err.code:
+                raise NllError(err.code, f"{err.msg!r}: {strerror(-err.code)}")
             yield b""  # "no error" response to state-modifying requests
-            continue
+            return
         if msg_type != rtyp:
             raise NllError(f"{msg_type} is not {rtyp}: {message.hex()}")
         if flags & NLM_F_DUMP_INTR:
@@ -500,39 +505,82 @@ def nll_get_dump(
     if sk is None:
         with socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE) as owns:
             owns.setsockopt(SOL_NETLINK, NETLINK_GET_STRICT_CHK, 1)
-            yield from _parse(_nll_send(owns, msg, rtyp))
+            _nll_send(owns, msg)
+            yield from _parse(_nll_recv(owns, rtyp))
     else:
-        yield from _parse(_nll_send(sk, msg, rtyp))
+        _nll_send(sk, msg)
+        yield from _parse(_nll_recv(sk, rtyp))
 
 
 def nll_transact(
     typ: int,
     rtyp: int,
-    rtgenmsg: NllMsg,
+    *rtgenmsgs: NllMsg,
     sk: Optional[socket] = None,
     flags: int = 0,
 ) -> bytes:
     """
-    Send message and receive response.
+    Send message(s) and receive response.
+    If multiple messages are provided, they are all sent
+    before any messages are read on the socket.
     Args same as nll_dump except for optional additional flags
     for nlmsghdr construction. Returns raw message bytes
     which can be parsed on the user side.
     """
 
-    msg = bytes(
-        nlmsghdr(
-            nlmsg_len=nlmsghdr.SIZE + len(bytes(rtgenmsg)),
-            nlmsg_type=typ,
-            nlmsg_flags=NLM_F_REQUEST | NLM_F_ACK | flags,
-            nlmsg_seq=1,
-            nlmsg_pid=getpid(),
-        ),
-    ) + bytes(rtgenmsg)
+    msgs = (
+        bytes(
+            nlmsghdr(
+                nlmsg_len=nlmsghdr.SIZE + len(bytes(rtgenmsg)),
+                nlmsg_type=typ,
+                nlmsg_flags=NLM_F_REQUEST | NLM_F_ACK | flags,
+                nlmsg_seq=1,
+                nlmsg_pid=getpid(),
+            ),
+        )
+        + bytes(rtgenmsg)
+        for rtgenmsg in rtgenmsgs
+    )
 
     if sk is None:
         with socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE) as owns:
-            return next(_nll_send(owns, msg, rtyp))
-    return next(_nll_send(sk, msg, rtyp))
+            _nll_send(owns, *msgs)
+            return next(_nll_recv(owns, rtyp))
+    _nll_send(sk, *msgs)
+    return next(_nll_recv(sk, rtyp))
+
+
+def nll_batch(
+    typ: int,
+    rtyp: int,
+    *rtgenmsgs: NllMsg,
+    flags: int = 0,
+    **kwargs: Any,
+) -> Iterator[bytes]:
+    selector = DefaultSelector()
+    for sock, msg in (
+        (
+            socket(AF_NETLINK, SOCK_RAW, NETLINK_ROUTE),
+            bytes(
+                nlmsghdr(
+                    nlmsg_len=nlmsghdr.SIZE + len(bytes(rtgenmsg)),
+                    nlmsg_type=typ,
+                    nlmsg_flags=NLM_F_REQUEST | NLM_F_ACK | flags,
+                    nlmsg_seq=1,
+                    nlmsg_pid=getpid(),
+                ),
+            )
+            + bytes(rtgenmsg),
+        )
+        for rtgenmsg in rtgenmsgs
+    ):
+        selector.register(sock, EVENT_READ)
+        _nll_send(sock, msg)
+
+    while selector.get_map():
+        for key, mask in selector.select():
+            yield from _nll_recv(cast(socket, key.fileobj), rtyp)
+            selector.unregister(key.fileobj)
 
 
 ############################################################
