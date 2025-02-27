@@ -1,3 +1,14 @@
+netlinklib (2.2.1) stable; urgency=medium
+
+  [ Michael Dickensheets ]
+  * api_: deprecate legacy API
+  * core: fix dispatcher handling of multiple-nested NllMsgs
+
+  [ Eugene Crosser ]
+  * README: expand and polish a bit.
+
+ -- Michael Dickensheets <michael.dickensheets@ionos.com>  Thu, 27 Feb 2025 14:18:19 +0100
+
 netlinklib (2.2.0) stable; urgency=medium
 
   [ Eugene Crosser ]
