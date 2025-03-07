@@ -114,6 +114,13 @@ class NllMsg:
             _Dispatcher(*args) if args else None
         )
 
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}"
+            f"({repr(self.hdr)}, tag={self.tag}, "
+            f"{', '.join(repr(el) for el in self.args)})"
+        )
+
     def __bytes__(self) -> bytes:
         return bytes(self.hdr) + self.encode_payload()
 
