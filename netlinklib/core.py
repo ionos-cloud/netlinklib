@@ -577,9 +577,17 @@ def nll_listen(
     `sk` should already be bound to correct groups.
     See `nll_make_event_listener.`
     """
-    for msg_type, _, _, _, message in _messages(sk):
+    for msg_type, flags, _, _, message in _messages(sk):
         try:
             accum, parser = accum_parser[msg_type]
         except KeyError:
             raise NllError(f"No parser for message type {msg_type}")
-        yield (msg_type, parser(accum(), message)[0])  # type: ignore
+        parsed = parser(accum(), message)[0]  # type: ignore
+        # A hack to allow for inclusion of flags for parsed objects that
+        # want them. TODO: implement more generic parsing that does not
+        # handle top level separately.
+        try:
+            setattr(parsed, "flags", flags)
+        except AttributeError:
+            pass
+        yield (msg_type, parsed)
