@@ -17,6 +17,7 @@ from typing import (
     get_type_hints,
 )
 
+from .core import NllException, NllError, NllDumpInterrupted
 from .defs import *  # pylint: disable=wildcard-import, unused-wildcard-import
 
 __all__ = (
@@ -32,18 +33,6 @@ RtaDesc = Dict[int, Tuple[Callable[..., Any], Any]]
 
 
 Accum = TypeVar("Accum")
-
-
-class NllException(Exception):
-    """Any exception originating from here"""
-
-
-class NllError(NllException):
-    """Error originating from here"""
-
-
-class NllDumpInterrupted(NllException):
-    """ "Dump interrupted" condition reported by the kernel"""
 
 
 class NllMsg:
