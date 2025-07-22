@@ -1,3 +1,15 @@
+netlinklib (2.2.2) stable; urgency=medium
+
+  [ Eugene Crosser ]
+  * Give a meaningful __repr__ to NllMsg
+
+  [ Michael Dickensheets ]
+  * core: parse flags in nll_listen
+  * core: make NllException types same object in both current and legacy modules
+  * core.nll_listen: handle StopParsing
+
+ -- Michael Dickensheets <michael.dickensheets@ionos.com>  Tue, 22 Jul 2025 09:01:15 +0200
+
 netlinklib (2.2.1) stable; urgency=medium
 
   [ Michael Dickensheets ]
