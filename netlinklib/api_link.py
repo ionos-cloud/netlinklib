@@ -1,4 +1,4 @@
-""" Netlink dump implementation replacement for pyroute2 """
+"""Netlink dump implementation replacement for pyroute2"""
 
 from errno import ENODEV
 from functools import partial, wraps
@@ -37,7 +37,7 @@ DataT = TypeVar("DataT", bytes, int, str)
 
 
 def maybe(
-    func: Callable[[DataT], bytes]
+    func: Callable[[DataT], bytes],
 ) -> Callable[[Optional[DataT]], Optional[bytes]]:
     @wraps(func)
     def _func(data: Optional[DataT]) -> Optional[bytes]:

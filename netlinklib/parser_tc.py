@@ -1,4 +1,4 @@
-""" Netlink dump implementation replacement for pyroute2 """
+"""Netlink dump implementation replacement for pyroute2"""
 
 from functools import partial
 from typing import Callable, Dict, List, Literal, Optional, Tuple, Type, Union
@@ -14,10 +14,12 @@ from .legacy_classes import (
     tc_u32_key,
     tcmsg,
 )
+
 try:
     from .legacy_classes import tc_u32_sel  # type: ignore [attr-defined]
 except ImportError:
     from .legacy_classes import tc_u32_sel_hdr
+
     tc_u32_sel = tc_u32_sel_hdr
 
 # pylint: disable=wildcard-import, unused-wildcard-import

@@ -1,4 +1,4 @@
-""" Netlink dump implementation replacement for pyroute2 """
+"""Netlink dump implementation replacement for pyroute2"""
 
 from socket import (
     AF_BRIDGE,

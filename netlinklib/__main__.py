@@ -1,4 +1,4 @@
-""" Manual test for netlinklib """
+"""Manual test for netlinklib"""
 
 from typing import Any, Literal
 from cProfile import Profile

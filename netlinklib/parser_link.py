@@ -1,4 +1,4 @@
-""" Netlink dump implementation replacement for pyroute2 """
+"""Netlink dump implementation replacement for pyroute2"""
 
 from typing import Callable, Dict, Optional, Union, cast
 from .legacy_classes import ifinfomsg
