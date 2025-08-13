@@ -1,4 +1,4 @@
-""" Unittest for black formatting check """
+"""Unittest for black formatting check"""
 
 from glob import glob
 from re import match

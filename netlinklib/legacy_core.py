@@ -1,4 +1,4 @@
-""" Netlink core functions for legacy API"""
+"""Netlink core functions for legacy API"""
 
 from abc import abstractmethod
 from collections import ChainMap

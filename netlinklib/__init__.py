@@ -1,4 +1,4 @@
-""" Netlinklib: reexport all API objects """
+"""Netlinklib: reexport all API objects"""
 
 # pylint: disable=wildcard-import, unused-wildcard-import
 from .api_link import *

@@ -1,4 +1,4 @@
-""" Netlink dump implementation replacement for pyroute2 """
+"""Netlink dump implementation replacement for pyroute2"""
 
 # False positive from pylint?
 # pylint: disable=ungrouped-imports, wrong-import-order

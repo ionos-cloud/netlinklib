@@ -1,4 +1,4 @@
-""" Netlink dump implementation core functions """
+"""Netlink dump implementation core functions"""
 
 from abc import abstractmethod
 from collections import ChainMap
