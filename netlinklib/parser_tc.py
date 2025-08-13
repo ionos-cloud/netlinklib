@@ -12,9 +12,13 @@ from .legacy_classes import (
     tc_htb_opt,
     tc_ratespec,
     tc_u32_key,
-    tc_u32_sel,
     tcmsg,
 )
+try:
+    from .legacy_classes import tc_u32_sel  # type: ignore [attr-defined]
+except ImportError:
+    from .legacy_classes import tc_u32_sel_hdr
+    tc_u32_sel = tc_u32_sel_hdr
 
 # pylint: disable=wildcard-import, unused-wildcard-import
 from .legacy_core import *
