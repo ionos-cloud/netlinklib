@@ -12,7 +12,8 @@ Build-Depends: debhelper-compat (= 12),
  cpp,
  black,
  mypy,
- pylint
+ pylint,
+ eoib-headers <pkg.netlinklib.eoib>
 X-Python-Version: >= 3.5
 Homepage: https://gitlab.pb.local/sdn/netlinklib
 

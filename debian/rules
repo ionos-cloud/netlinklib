@@ -4,5 +4,9 @@ export PYBUILD_NAME=netlinklib
 # export PYBUILD_BEFORE_TEST=cp -r mypystubs {build_dir}
 # export PYBUILD_AFTER_TEST=rm -rf {build_dir}/mypystubs
 
+ifeq ($(filter pkg.netlinklib.eoib,$(DEB_BUILD_PROFILES)),)
+  export NLL_EXTRA_HEADERS="linux/param.h,eoib/eoib_dflt.h,eoib/eoib_link.h"
+endif
+
 %:
 	dh $@ --with python3 --buildsystem=pybuild

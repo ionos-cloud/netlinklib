@@ -6,3 +6,4 @@ include:
 
 variables:
   RELEASES: "debian-stretch-buster ubuntu-focal-jammy-kinetic"
+  DEB_BUILD_PROFILES: "pkg.netlinklib.eoib"
