@@ -15,11 +15,13 @@ To verify result against manually assembled defs file:
 
 from collections import OrderedDict
 from contextlib import ExitStack
+from io import TextIOWrapper
 from os import getenv, unlink
 from os.path import join
+from pycparser import CParser
 from struct import calcsize
-from subprocess import run, PIPE, STDOUT
-from sys import argv, stdout
+from subprocess import PIPE, Popen, run, STDOUT
+from sys import argv
 from tempfile import mkstemp
 from typing import ContextManager, IO, List, Literal, Tuple, Type
 from typing import Dict as DictT
@@ -37,13 +39,14 @@ HEADERS = (
     "linux/if_addr.h",
     "linux/if_bridge.h",
     "linux/if_link.h",
+    "linux/if_tunnel.h",
     "linux/netlink.h",
     "linux/genetlink.h",
     "linux/rtnetlink.h",
     "linux/neighbour.h",
     "linux/veth.h",
-    # "linux/ethtool.h",
-    # "linux/ethtool_netlink.h",
+    "linux/ethtool.h",
+    "linux/ethtool_netlink.h",
     "linux/pkt_sched.h",
     "linux/pkt_cls.h",
     "linux/tc_act/tc_bpf.h",
@@ -70,21 +73,21 @@ HEADERS = (
     "linux/tc_ematch/tc_em_nbyte.h",
     "linux/tc_ematch/tc_em_text.h",
 )
-# This works for now, until we come up with a better way
-# to differentiate which structs are interesting to us.
-# Or we could just parse all structs unconditionally,
-# but this requires a more sophisticated parser/resulting
-# dataclass to handle nested structs and unions.
-DEF_ONLY_HEADERS = ("linux/if_tunnel.h",)
 
+PREINC = """#define __signed__
+#define __attribute__(x)
+#define __inline__ inline
+#define __asm__(x)
+"""
 
 # Some tcm_* defines are different, and luckily not relevant to us
 EXCLUDE = "(^__)|(^tcm_block_index$)|(^tc_gen$)|(^tc_pedit$)"
 
 CCODE = (
     """\
-#include <linux/sockios.h>  /* Needed for linux/if_tunnel.h */
-#include <stdio.h>""",
+#include <stdio.h>
+#include <asm-generic/ioctls.h>
+#include <linux/sockios.h>""",
     """\
 
 struct vn {char *n; long long unsigned v;} list[] = {""",
@@ -197,7 +200,9 @@ TDICT = {
     "__kernel_sa_family_t": ("H", 0),
     "__be16": ("B", 2),
     "__be32": ("B", 4),
+    "__be64": ("B", 8),
     "__u8": ("B", 0),
+    "__s8": ("b", 0),
     "char": ("b", 0),
     "signedchar": ("B", 0),
     "unsignedchar": ("B", 0),
@@ -206,6 +211,9 @@ TDICT = {
     "signedshort": ("h", 0),
     "unsignedshort": ("H", 0),
     "__s32": ("l", 0),
+    "long": ("l", 0),
+    "signedlong": ("l", 0),
+    "unsignedlong": ("L", 0),
     "__s64": ("q", 0),
     "int": ("i", 0),
     "signed": ("I", 0),
@@ -215,10 +223,11 @@ TDICT = {
     "unsignedlong": ("L", 0),
     "__u32": ("L", 0),
     "__u64": ("Q", 0),
-    "__time_t": ("Q", 0),
-    "__suseconds_t": ("Q", 0),
-    "__syscall_slong_t": ("Q", 0),
-    "__pthread_list_t": ("B", 16),
+    "__time_t": ("Q", 0),  # TODO make this work for 32bit time_t when needed
+    "__atomic_wide_counter": ("Q", 0),  # TODO it's a typedef from struct
+    "__suseconds_t": ("q", 0),  # TODO make this work for 32bit
+    "__syscall_slong_t": ("q", 0),  # TODO make this work for 32bit
+    "__pthread_list_t": ("B", 16),  # TODO it's a typedef from struct
     "__atomic_wide_counter": ("Q", 0),
     "sa_family_t": ("H", 0),
 }
@@ -254,6 +263,8 @@ def _slotname(nm):
 
 
 if __name__ == "__main__":
+    if len(argv) != 2:
+        raise RuntimeError("Must specify class filename")
     extra_headers = tuple(
         []
         if (envval := getenv("NLL_EXTRA_HEADERS")) is None
@@ -261,7 +272,7 @@ if __name__ == "__main__":
     )
     names = set()
     structs = OrderedDict()
-    for infn in HEADERS + DEF_ONLY_HEADERS + extra_headers:
+    for infn in HEADERS + extra_headers:
         with mkstemp_n() as (defs, rest), open(join(INC, infn)) as inp:
             line = ""
             for rline in inp.readlines():
@@ -292,7 +303,7 @@ if __name__ == "__main__":
 
     with open("mkdefs.c", "w") as out:
         print(CCODE[0], file=out)
-        for hdr in HEADERS + DEF_ONLY_HEADERS + extra_headers:
+        for hdr in HEADERS + extra_headers:
             print(f"#include <{hdr}>", file=out)
         print(CCODE[1], file=out)
         for name in names:
@@ -305,6 +316,27 @@ if __name__ == "__main__":
             print(f'\t{{ "{name}", {name} }},', file=out)
         print(CCODE[2], file=out)
 
+    with Popen(
+        [CPP, "-Ifake_libc_include"],
+        stdin=PIPE,
+        stdout=PIPE,
+        stderr=PIPE,
+        encoding="ascii",
+    ) as proc:
+        assert isinstance(proc.stdout, TextIOWrapper) and isinstance(
+            proc.stderr, TextIOWrapper
+        )
+        proc.stdin.write(
+            PREINC
+            + "\n".join(
+                f"#include <{hdr}>" for hdr in (HEADERS + extra_headers)
+            )
+        )
+        proc.stdin.close()
+        ast = CParser().parse(proc.stdout.read(), "combined_headers.c")
+    ast.show()
+
+    # This should be removed
     for infn in HEADERS:
         process = run(
             [CPP, join(INC, infn)],
@@ -346,7 +378,11 @@ class NllHdr(Dict[str, Any]):
             ),
         )
 """
-    structsize: DictT[str, int] = {"in6_addr": 16}  # TODO kill this hack
+    structsize: DictT[str, int] = {  # TODO kill this hack
+        "in6_addr": 16,
+        "iphdr": 20,
+        "ethtool_rx_ntuple_flow_spec": 176,
+    }
     for clname, _elems in structs.items():
         elems = tuple(
             (
@@ -382,67 +418,7 @@ class NllHdr(Dict[str, Any]):
         super_args = ", ".join(f"{name}={name}" for name, *_ in elems)
         classfile += f"\tdef __init__(self, *, {init_args}) -> None:\n"
         classfile += f"\t\tsuper().__init__({super_args})\n"
-    with open(argv[1], "w") if len(argv) > 1 else stdout as cl_out:
-        print(
-            format_file_contents(
-                classfile, fast=False, mode=Mode(line_length=79)
-            ),
-            file=cl_out,
-            end="",
-        )
-
-    # Classes for legacy API to maintain back compatibility
-
-    classfile = '"""Autogenerated file, do not edit!"""\n\n'
-    classfile += "# pylint: disable-all\n\n"
-    classfile += "from struct import unpack\n"
-    classfile += "from typing import List\n"
-    classfile += "from .legacy_datatypes import NllMsg, nlmsgerr"
-    structsize: DictT[str, int] = {"in6_addr": 16}  # TODO kill this hack
-    for clname, _elems in structs.items():
-        if clname == "nlmsgerr":  # Skip it, we define it by hand elsewhere
-            continue
-        elems = tuple(
-            (
-                _slotname(nm),
-                *_mkfmt(tspc, eval(dim) if dim else "", sizecache=structsize),
-            )
-            for nm, tspc, dim in _elems
-        )
-        classfile += f"\n\nclass {clname}(NllMsg):\n"
-        classfile += f'\t"""struct {clname}"""\n'
-        classfile += (
-            '\t__slots__ = ("remainder", '
-            + ", ".join(f'"{nm}"' for nm, *_ in elems)
-            + ")\n"
-        )
-        packfmt = "=" + "".join(
-            f"{dim}{fmt}" for _, fmt, dim in elems if dim != 0
-        )
-        size = calcsize(packfmt)
-        structsize[clname] = size
-        lside = " ".join(
-            " ".join(
-                [f"self.{nm}[{i}]," for i in range(dim)]
-                if fmt != "s" and dim
-                else [f"self.{nm},"]
-            )
-            for nm, fmt, dim in elems
-            if dim != 0
-        )
-        classfile += f'\tPACKFMT = "{packfmt}"\n'
-        classfile += f"\tSIZE = {size}\n"
-        classfile += "\tremainder: bytes\n"
-        for name, fmtchar, dim in elems:
-            typ = (
-                "bytes"
-                if fmtchar == "s" and dim != ""
-                else "List[int]" if dim else "int"
-            )
-            classfile += f"\t{name}: {typ}  # {dim} {fmtchar}\n"
-        classfile += "\tdef from_bytes(self, inp: bytes) -> None:\n"
-        classfile += f"\t\t{lside} = unpack(self.PACKFMT, inp)\n"
-    with open(argv[2], "w") if len(argv) > 2 else stdout as cl_out:
+    with open(argv[1], "w") as cl_out:
         print(
             format_file_contents(
                 classfile, fast=False, mode=Mode(line_length=79)
