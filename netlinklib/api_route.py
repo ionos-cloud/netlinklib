@@ -94,7 +94,7 @@ def _nll_route(  # pylint: disable=too-many-arguments, too-many-locals
                 (RTA_TABLE, lambda x: pack("=i", x), table),
                 (RTA_DST, lambda ip: ip_address(ip).packed, dst),
                 (RTA_OIF, lambda x: pack("=i", x), ifindex),
-                (RTA_PRIORITY, lambda x: pack("=i", x), metric),
+                (RTA_PRIORITY, lambda x: pack("=I", x), metric),
                 (RTA_GATEWAY, lambda ip: ip_address(ip).packed, gateway),
                 (
                     RTA_MULTIPATH,
