@@ -1,3 +1,13 @@
+netlinklib (2.2.3) stable; urgency=medium
+
+  * Support kernel 6.1X TC header tc_u32_sel
+  * Reformat with black 25.1.0
+  * fix crash of "deprecated" wrapper on partial funcs
+  * legacy routes: RTA_PRIORITY is unsigned int
+  * include linux/if.h and adjust exclusions
+
+ -- Eugene Crosser <evgenii.cherkashin@ionos.com>  Wed, 08 Oct 2025 16:04:09 +0200
+
 netlinklib (2.2.2) stable; urgency=medium
 
   [ Eugene Crosser ]
