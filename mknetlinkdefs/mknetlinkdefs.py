@@ -33,6 +33,7 @@ from re import match
 CPP = "/usr/bin/cpp"
 INC = "/usr/include"
 HEADERS = (
+    "linux/if.h",
     "linux/if_addr.h",
     "linux/if_bridge.h",
     "linux/if_link.h",
@@ -211,8 +212,15 @@ TDICT = {
     "unsigned": ("I", 0),
     "signedint": ("I", 0),
     "unsignedint": ("I", 0),
+    "unsignedlong": ("L", 0),
     "__u32": ("L", 0),
     "__u64": ("Q", 0),
+    "__time_t": ("Q", 0),
+    "__suseconds_t": ("Q", 0),
+    "__syscall_slong_t": ("Q", 0),
+    "__pthread_list_t": ("B", 16),
+    "__atomic_wide_counter": ("Q", 0),
+    "sa_family_t": ("H", 0),
 }
 
 
@@ -288,8 +296,13 @@ if __name__ == "__main__":
             print(f"#include <{hdr}>", file=out)
         print(CCODE[1], file=out)
         for name in names:
-            if not name.startswith("SYSFS"):  # They are string defs TODO: kill
-                print(f'\t{{ "{name}", {name} }},', file=out)
+            if (
+                name in ("ifc_req", "ifc_buf")
+                or name.startswith("ifr_")
+                or name.startswith("SYSFS")
+            ):
+                continue
+            print(f'\t{{ "{name}", {name} }},', file=out)
         print(CCODE[2], file=out)
 
     for infn in HEADERS:
