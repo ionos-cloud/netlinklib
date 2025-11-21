@@ -19,6 +19,7 @@ from io import TextIOWrapper
 from os import getenv, unlink
 from os.path import join
 from pycparser import CParser
+from pycparser.c_ast import Decl, Struct, Union
 from struct import calcsize
 from subprocess import PIPE, Popen, run, STDOUT
 from sys import argv
@@ -341,7 +342,14 @@ if __name__ == "__main__":
         )
         proc.stdin.close()
         ast = CParser().parse(proc.stdout.read(), "combined_headers.c")
-    ast.show()
+    # import pdb
+    # pdb.set_trace()
+    # ast.show()
+    for _, t in ast.children():
+        if isinstance(t, Decl) and isinstance(t.type, (Struct, Union)):
+            print(t.type.__class__.__name__, t.type.name)
+            for d in t.type.decls:
+                print("\t", d.name)
 
     # This should be removed
     structs = OrderedDict()
