@@ -279,7 +279,7 @@ if __name__ == "__main__":
         if (envval := getenv("NLL_EXTRA_HEADERS")) is None
         else envval.split(",")
     )
-    names = set()
+    names = {}  # dict with key=name, val=is-it-a-string?
     for infn in HEADERS + extra_headers:
         with mkstemp_n() as (defs, rest), open(join(INC, infn)) as inp:
             line = ""
@@ -298,26 +298,29 @@ if __name__ == "__main__":
             # find instances of defines ignoring other syntax
             for item, start, stop in define.scanString(defs.read()):
                 if item.name:
-                    if match(EXCLUDE, item.name) or item.valstart == '"':
+                    if match(EXCLUDE, item.name):
                         continue
-                    names.add(item.name)
+                    names[item.name] = item.valstart == '"'
                 else:
                     print("****************\n", item.dump())
             # find instances of enums ignoring other syntax
             for item, start, stop in enum.scanString(rest.read()):
                 for entry in item.names:
                     if not entry.name.startswith("__"):
-                        names.add(entry.name)
+                        names[entry.name] = False
 
     with open("mkdefs.c", "w") as out:
         print(CCODE[0], file=out)
         for hdr in HEADERS + extra_headers:
             print(f"#include <{hdr}>", file=out)
         print(CCODE[1], file=out)
-        for name in names:
+        for name, isastring in names.items():
             if name in ("ifc_req", "ifc_buf") or name.startswith("ifr_"):
                 continue
-            print(f'\t{{ "{name}", {name}, NULL }},', file=out)
+            if isastring:
+                print(f'\t{{ "{name}", 0ll, {name} }},', file=out)
+            else:
+                print(f'\t{{ "{name}", {name}, NULL }},', file=out)
         print(CCODE[2], file=out)
 
     with Popen(

@@ -5,4 +5,4 @@ include:
     file: debian-build-recipe.yml
 
 variables:
-  RELEASES: "debian-stretch-buster ubuntu-focal-jammy-kinetic"
+  RELEASES: "debian-buster-stretch-bullseye ubuntu-focal-jammy-kinetic"
