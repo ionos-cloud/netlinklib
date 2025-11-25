@@ -1,7 +1,8 @@
 netlinklib/classes.py
 netlinklib/legacy_classes.py
 netlinklib/defs.py
-mknetlinkdefs/mkdefs*
+mknetlinkdefs/mk*
+mknetlinkdefs/sizes*
 **/__pycache__/
 .pybuild/
 debian/.debhelper
