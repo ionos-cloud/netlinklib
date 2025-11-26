@@ -70,6 +70,9 @@ CCSIZES = (
 #include <linux/sockios.h>""",
     """\
 
+#define dim(kind, item, elem) \\
+        (sizeof(((kind item *)0)->elem) / sizeof(((kind item *)0)->elem[0]))
+
 struct vn {char *n; size_t v;} list[] = {""",
     """\
 \t{NULL, 0},
@@ -167,25 +170,25 @@ typedvar = Group(
     typespec("typespec")
     + pc.identifier("name")
     + Optional(
-        Group(LBRACKET + Optional(arith_expr, "0")("dim") + RBRACKET)
+        Group(LBRACKET + Optional(arith_expr)("val") + RBRACKET)("dim")
         ^ Group(Literal(":") + pc.integer)
     )
     + SEMICOLON
 )
 
-stun_body << (Suppress(LBRACE) + Group(typedvar[...]) + Suppress(RBRACE))
+stun_body << (Suppress(LBRACE) + Group(typedvar[...])("elist") + Suppress(RBRACE))
 
 struct = (
     Literal("struct")("kind")
     + pc.identifier("name")
-    + Optional(stun_body)("elist")
+    + Optional(stun_body)
 )
 struct.ignore(c_style_comment)
 
 union = (
     Literal("union")("kind")
     + pc.identifier("name")
-    + Optional(stun_body)("elist")
+    + Optional(stun_body)
 )
 union.ignore(c_style_comment)
 
@@ -282,6 +285,7 @@ if __name__ == "__main__":
     ### Parse headers one by one, after preprocessing. Find structs and unions.
 
     structs_and_unions = {}
+    arrays = []
     for infn in HEADERS + extra_headers:
         process = run(
             [CPP, join(INC, infn)],
@@ -295,6 +299,9 @@ if __name__ == "__main__":
         )
         for item, start, stop in struct_or_union.scanString(ccode):
             structs_and_unions[item.name] = item.kind
+            for elem in item.elist:
+                if elem.dim and elem.dim.val:
+                    arrays.append((item.kind, item.name, elem.name))
 
     for excl in EXCL_DEFS:
         structs_and_unions[excl] = (
@@ -313,6 +320,11 @@ if __name__ == "__main__":
                 print(f'\t{{ "{name}", 0 }},', file=out)
             else:
                 print(f'\t{{ "{name}", sizeof({kind} {name}) }},', file=out)
+        # For elements of structs and unions that are fixed size arrays,
+        # generate size entries as `struct_name.elem_name` and the value
+        # in such entries is _dimension of the array_, not size in bytes!
+        for kind, item, elem in arrays:
+            print(f'\t{{ "{item}.{elem}", dim({kind}, {item}, {elem}) }},', file=out)
         # Include some typedefs so we can generate architecture-appropriate
         # unpackers for them, if they are used in some of the structs.
         for name in (
