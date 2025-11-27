@@ -4,8 +4,8 @@ all: ../netlinklib/defs.py ../netlinklib/classes.py
 	./mkdefs >$@
 	black -l79 $@
 
-../netlinklib/classes.py: stage2.py sizes.py
-	python3 stage2.py >$@
+../netlinklib/classes.py: stage3.py sizes.py
+	python3 stage3.py >$@
 
 sizes.py: mksize
 	./mksize >$@
