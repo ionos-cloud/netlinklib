@@ -1,3 +1,9 @@
+netlinklib (2.2.4) stable; urgency=medium
+
+  * No-change release to trigger Ubuntu Questing build.
+
+ -- Michael Dickensheets <michael.dickensheets@ionos.com>  Fri, 05 Dec 2025 16:46:09 +0100
+
 netlinklib (2.2.3) stable; urgency=medium
 
   * Support kernel 6.1X TC header tc_u32_sel
