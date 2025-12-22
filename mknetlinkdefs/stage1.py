@@ -149,10 +149,10 @@ paren_expr = arith_expr ^ (LPAREN + arith_expr + RPAREN)
 enum_elem = Group(pc.identifier("name") + Optional(EQ + paren_expr("value")))
 enum_body = (
     Suppress(LBRACE)
-    + Group(enum_elem + (COMMA + enum_elem)[...] + Optional(COMMA))
+    + Group(enum_elem + (COMMA + enum_elem)[...] + Optional(COMMA))("group")
     + Suppress(RBRACE)
 )
-enum = Suppress("enum") + Optional(pc.identifier("ename")) + enum_body("names")
+enum = Suppress("enum") + Optional(pc.identifier("ename")) + enum_body
 enum.ignore(c_style_comment)
 
 # Structs and unions body has to be a recusive definition
@@ -176,20 +176,16 @@ typedvar = Group(
     + SEMICOLON
 )
 
-stun_body << (Suppress(LBRACE) + Group(typedvar[...])("elist") + Suppress(RBRACE))
+stun_body << (
+    Suppress(LBRACE) + Group(typedvar[...])("elist") + Suppress(RBRACE)
+)
 
 struct = (
-    Literal("struct")("kind")
-    + pc.identifier("name")
-    + Optional(stun_body)
+    Literal("struct")("kind") + pc.identifier("name") + Optional(stun_body)
 )
 struct.ignore(c_style_comment)
 
-union = (
-    Literal("union")("kind")
-    + pc.identifier("name")
-    + Optional(stun_body)
-)
+union = Literal("union")("kind") + pc.identifier("name") + Optional(stun_body)
 union.ignore(c_style_comment)
 
 struct_or_union = struct("struct") ^ union("union")
@@ -264,9 +260,9 @@ if __name__ == "__main__":
                     print("****************\n", item.dump())
             # find instances of enums ignoring other syntax
             for item, start, stop in enum.scanString(rest.read()):
-                for entry in item.names:
-                    if not entry.name.startswith("__"):
-                        names[entry.name] = False
+                for elem in item.group:
+                    if not elem.name.startswith("__"):
+                        names[elem.name] = False
 
     with open("mkdefs.c", "w") as out:
         print(CCDEFS[0], file=out)
@@ -284,8 +280,9 @@ if __name__ == "__main__":
 
     ### Parse headers one by one, after preprocessing. Find structs and unions.
 
-    structs_and_unions = {}
-    arrays = []
+    # Potential aliases for structs_and_unions, include them first
+    structs_and_unions = { excl: None for excl in EXCL_DEFS}
+    arrays = set()
     for infn in HEADERS + extra_headers:
         process = run(
             [CPP, join(INC, infn)],
@@ -301,12 +298,7 @@ if __name__ == "__main__":
             structs_and_unions[item.name] = item.kind
             for elem in item.elist:
                 if elem.dim and elem.dim.val:
-                    arrays.append((item.kind, item.name, elem.name))
-
-    for excl in EXCL_DEFS:
-        structs_and_unions[excl] = (
-            None  # Potential aliases for structs_and_unions, include them
-        )
+                    arrays.add((item.kind, item.name, elem.name))
 
     with open("mksize.c", "w") as out:
         print(CCSIZES[0], file=out)
@@ -324,7 +316,10 @@ if __name__ == "__main__":
         # generate size entries as `struct_name.elem_name` and the value
         # in such entries is _dimension of the array_, not size in bytes!
         for kind, item, elem in arrays:
-            print(f'\t{{ "{item}.{elem}", dim({kind}, {item}, {elem}) }},', file=out)
+            print(
+                f'\t{{ "{item}.{elem}", dim({kind}, {item}, {elem}) }},',
+                file=out,
+            )
         # Include some typedefs so we can generate architecture-appropriate
         # unpackers for them, if they are used in some of the structs.
         for name in (
