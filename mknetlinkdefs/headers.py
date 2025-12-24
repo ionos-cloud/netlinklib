@@ -46,3 +46,30 @@ PREINC = """#define __signed__
 #define __inline__ inline
 #define __asm__(x)
 """
+
+# These defines refer to other identifies, rather than arithmetic expressions
+# or strings. We have not good way to detect such cases automatically.
+EXCL_DEFS = {
+    "ifc_buf",
+    "ifc_req",
+    "ifr_addr",
+    "ifr_bandwidth",
+    "ifr_broadaddr",
+    "ifr_data",
+    "ifr_dstaddr",
+    "ifr_flags",
+    "ifr_hwaddr",
+    "ifr_ifindex",
+    "ifr_map",
+    "ifr_metric",
+    "ifr_mtu",
+    "ifr_name",
+    "ifr_netmask",
+    "ifr_newname",
+    "ifr_qlen",
+    "ifr_settings",
+    "ifr_slave",
+    "tcm_block_index",
+    "tc_gen",
+    "tc_pedit",
+}
