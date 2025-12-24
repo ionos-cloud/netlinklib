@@ -11,6 +11,7 @@ This is stage 3. It parses headers "properly" and generates Python file
 with class definition for structures.
 """
 
+from enum import Enum
 from io import TextIOWrapper
 from os import getenv
 from pycparser import CParser
@@ -29,7 +30,17 @@ from struct import calcsize
 from subprocess import PIPE, Popen, run, STDOUT
 from sys import argv
 from tempfile import mkstemp
-from typing import Any, ContextManager, IO, List, Literal, Set, Tuple, Type
+from typing import (
+    Any,
+    ContextManager,
+    IO,
+    List,
+    Literal,
+    NamedTuple,
+    Set,
+    Tuple,
+    Type,
+)
 from typing import Dict as DictT
 from typing import Literal as LiteralT
 from typing import Optional as OptionalT
@@ -107,94 +118,102 @@ def _slotname(nm):
     return nm
 
 
+class Kind(Enum):
+    Struct = 1
+    Union = 2
+    Pointer = 3
+    Scalar = 4
+
+
+class Element(NamedTuple):
+    """Attribute of the generated object"""
+
+    name: str
+    kind: Kind  # of the element of the array, if this is an array
+    size: int  # of the element of the array, if this is an array
+    dim: OptionalT[int] = None  # None: "not an array", 0 - size undefined
+
+
+class Item(NamedTuple):
+    """Description of the NllHdr object to generate"""
+
+    name: str
+    kind: Kind  # only Struct or Union. Do we need Union?...
+    size: int
+    elements: Tuple[Element, ...]
+
+
 class UnionStructVisitor(NodeVisitor):
-    elems: DictT[str, OptionalT[int]]
 
     def __init__(self) -> None:
         self.elems = {}
 
     def _visit_struct_union(self, node: Node) -> None:
         super().generic_visit(node)  # proceed with children, if any
+
         # Struct-s and Union-s are guaranteed to have "decls", maybe None
-        if numdecls := len(node.decls or []):
+        if (numdecls := len(node.decls or [])) < 1:
+            print(
+                "skipping item",
+                node.name,
+                "of size",
+                struc_union_sizes.get(node.name, None),
+            )
+            return
+
             print(
                 "encountered",
                 node.__class__.__name__,
                 node.name,
                 numdecls,
-                "children",
+                "children, size",
+                size,
             )
             for decl in node.decls:
-                if isinstance(decl.type, TypeDecl):
-                    if isinstance(decl.type.type, Struct):
+                # Collect Elements for this Item
+                if isinstance(decl.type, ArrayDecl):
+                    print("\t", decl.name, ": array")
+                    if isinstance(decl.type.type.type, IdentifierType):
                         print(
-                            "\t",
-                            decl.name,
-                            "struct",
-                            decl.type.type.name,
+                            "\t\t",
+                            " ".join(decl.type.type.type.names),
+                            struc_union_sizes.get(
+                                f"{node.name}.{decl.name}", None
+                            ),
                         )
-                    elif isinstance(decl.type.type, Union):
+                    elif isinstance(decl.type.type.type, (Struct, Union)):
                         print(
-                            "\t",
-                            decl.name,
-                            "union",
-                            decl.type.type.name,
+                            "\t\tstruct ",
+                            decl.type.type.type.name,
+                            struc_union_sizes.get(
+                                decl.type.type.type.name, None
+                            ),
                         )
-                    elif isinstance(decl.type.type, IdentifierType):
-                        sizespec = "".join(decl.type.type.names)
+                    elif isinstance(decl.type.type, PtrDecl):
                         print(
-                            "\t",
-                            decl.name,
-                            "scalar",
-                            sizespec,
-                            "bitsize",
-                            decl.bitsize.value if decl.bitsize else None,
+                            "\t\tptr ",
+                            " ".join(decl.type.type.type.type.names),
+                            struc_union_sizes.get(
+                                f"{node.name}.{decl.name}", None
+                            ),
                         )
                     else:
-                        raise RuntimeError(
-                            f"No support for {decl.name}: {decl.type.type}"
-                        )
+                        raise RuntimeError(decl.type.type.type)
+                elif isinstance(decl.type, TypeDecl):
+                    pass  # print("\t\t", decl.type.type)
                 elif isinstance(decl.type, PtrDecl):
-                    if isinstance(decl.type.type.type, (Struct, Union)):
-                        print(
-                            "\t",
-                            decl.name,
-                            decl.type.type.type.name,
-                            "(struct/union) pointer",
-                        )
-                    elif isinstance(decl.type.type.type, IdentifierType):
-                        print(
-                            "\t",
-                            decl.name,
-                            "".join(decl.type.type.type.names),
-                            "(scalar) pointer",
-                        )
-                elif isinstance(decl.type, Union):
-                    print(
-                        "\t",
-                        decl.name,
-                        "union",
-                        decl.type.name,
-                    )
+                    pass  # print("\t\t", decl.type.type)
                 elif isinstance(decl.type, Struct):
-                    print(
-                        "\t",
-                        decl.name,
-                        "struct",
-                        decl.type.name,
-                    )
-                elif isinstance(decl.type, ArrayDecl):
-                    print(
-                        "\t",
-                        decl.name,
-                        "array",
-                        decl.type.dim,
-                    )
-                else:
-                    raise RuntimeError(
-                        f"No support for {decl.name}: {decl.type}"
-                    )
-            self.elems[node.name] = struc_union_sizes.get(node.name, None)
+                    pass  # print("\t\t", decl.type.name)
+                elif isinstance(decl.type, Union):
+                    pass  # print("\t\t", decl.type.name)
+            self.elems[node.name] = size
+
+        # node.name and size are attributes for the Item instance
+        item = Item(
+            node.name, Kind.Struct, struc_union_sizes.get(node.name, None), ()
+        )
+        print(item)  # Generate python code from it here
 
     visit_Union = _visit_struct_union
     visit_Struct = _visit_struct_union
@@ -227,7 +246,6 @@ if __name__ == "__main__":
         ast = CParser().parse(proc.stdout.read(), "combined_headers.c")
     structs = UnionStructVisitor()
     structs.visit(ast)
-    print("UnionStructVisitor undef elems:", list(k for k, v in structs.elems.items() if v is None))
 
     exit(0)
 
