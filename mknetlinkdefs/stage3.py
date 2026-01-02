@@ -33,6 +33,7 @@ from tempfile import mkstemp
 from typing import (
     Any,
     ContextManager,
+    Dict,
     IO,
     List,
     Literal,
@@ -145,74 +146,83 @@ class Item(NamedTuple):
 
 class UnionStructVisitor(NodeVisitor):
 
-    def __init__(self) -> None:
-        self.elems = {}
-
     def _visit_struct_union(self, node: Node) -> None:
         super().generic_visit(node)  # proceed with children, if any
 
+        ikind = Kind.Struct if isinstance(node, Struct) else Kind.Union
+        isize = struc_union_sizes.get(node.name, None)
         # Struct-s and Union-s are guaranteed to have "decls", maybe None
-        if (numdecls := len(node.decls or [])) < 1:
-            print(
-                "skipping item",
-                node.name,
-                "of size",
-                struc_union_sizes.get(node.name, None),
-            )
+        numdecls = len(node.decls or [])
+        if numdecls < 1:
+            # This is a reference to a struct/union declared elsewhere
             return
 
-            print(
-                "encountered",
-                node.__class__.__name__,
-                node.name,
-                numdecls,
-                "children, size",
-                size,
-            )
-            for decl in node.decls:
-                # Collect Elements for this Item
-                if isinstance(decl.type, ArrayDecl):
-                    print("\t", decl.name, ": array")
-                    if isinstance(decl.type.type.type, IdentifierType):
-                        print(
-                            "\t\t",
-                            " ".join(decl.type.type.type.names),
-                            struc_union_sizes.get(
-                                f"{node.name}.{decl.name}", None
-                            ),
+        elems: List[Element] = []
+        for decl in node.decls:
+            # Collect Elements for this Item
+            dim: OptionalT[int] = None
+            if isinstance(decl.type, ArrayDecl):
+                dim = struc_union_sizes.get(f"{node.name}.{decl.name}", None)
+                if isinstance(decl.type.type.type, IdentifierType):
+                    ekind = Kind.Scalar
+                    esize = struc_union_sizes.get(
+                        " ".join(
+                            nm
+                            for nm in decl.type.type.type.names
+                            if nm != "unsigned"
                         )
-                    elif isinstance(decl.type.type.type, (Struct, Union)):
-                        print(
-                            "\t\tstruct ",
-                            decl.type.type.type.name,
-                            struc_union_sizes.get(
-                                decl.type.type.type.name, None
-                            ),
+                    )
+                elif isinstance(decl.type.type.type, (Struct, Union)):
+                    ekind = (
+                        Kind.Struct
+                        if isinstance(decl.type.type.type, Struct)
+                        else Kind.Union
+                    )
+                    esize = struc_union_sizes.get(
+                        decl.type.type.type.name, None
+                    )
+                elif isinstance(decl.type.type, PtrDecl):
+                    ekind = Kind.Pointer
+                    esize = struc_union_sizes.get("__pointer", None)
+                else:
+                    raise RuntimeError(decl.type.type.type)
+            elif isinstance(decl.type, TypeDecl):
+                if isinstance(decl.type.type, IdentifierType):
+                    ekind = Kind.Scalar
+                    esize = struc_union_sizes.get(
+                        " ".join(
+                            nm
+                            for nm in decl.type.type.names
+                            if nm != "unsigned"
                         )
-                    elif isinstance(decl.type.type, PtrDecl):
-                        print(
-                            "\t\tptr ",
-                            " ".join(decl.type.type.type.type.names),
-                            struc_union_sizes.get(
-                                f"{node.name}.{decl.name}", None
-                            ),
-                        )
-                    else:
-                        raise RuntimeError(decl.type.type.type)
-                elif isinstance(decl.type, TypeDecl):
-                    pass  # print("\t\t", decl.type.type)
-                elif isinstance(decl.type, PtrDecl):
-                    pass  # print("\t\t", decl.type.type)
-                elif isinstance(decl.type, Struct):
-                    pass  # print("\t\t", decl.type.name)
-                elif isinstance(decl.type, Union):
-                    pass  # print("\t\t", decl.type.name)
-            self.elems[node.name] = size
+                    )
+                elif isinstance(decl.type.type, (Struct, Union)):
+                    ekind = (
+                        Kind.Struct
+                        if isinstance(decl.type.type, Struct)
+                        else Kind.Union
+                    )
+                    esize = struc_union_sizes.get(
+                        decl.type.type.name, None
+                    )
+                else:
+                    raise RuntimeError(decl.type.type.type)
+            elif isinstance(decl.type, PtrDecl):
+                ekind = Kind.Pointer
+                esize = struc_union_sizes.get("__pointer", None)
+            elif isinstance(decl.type, (Struct, Union)):
+                ekind = (
+                    Kind.Struct
+                    if isinstance(decl.type, Struct)
+                    else Kind.Union
+                )
+                esize = struc_union_sizes.get(
+                    decl.type.name, None
+                )
+            elems.append(Element(decl.name, ekind, esize, dim))
 
         # node.name and size are attributes for the Item instance
-        item = Item(
-            node.name, Kind.Struct, struc_union_sizes.get(node.name, None), ()
-        )
+        item = Item(node.name, ikind, isize, tuple(elems))
         print(item)  # Generate python code from it here
 
     visit_Union = _visit_struct_union

@@ -75,6 +75,7 @@ CCSIZES = (
 
 struct vn {char *n; size_t v;} list[] = {""",
     """\
+\t{"__pointer", sizeof(void *)},
 \t{NULL, 0},
 };
 
@@ -296,6 +297,15 @@ if __name__ == "__main__":
         # Include some typedefs so we can generate architecture-appropriate
         # unpackers for them, if they are used in some of the structs.
         for name in (
+            "long",
+            "int",
+            "char",
+            "__u8",
+            "__be16",
+            "__be32",
+            "__u64",
+            "__u32",
+            "__u16",
             "__time_t",
             "__atomic_wide_counter",
             "__suseconds_t",
