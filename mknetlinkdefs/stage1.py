@@ -189,7 +189,9 @@ struct.ignore(c_style_comment)
 union = Literal("union")("kind") + pc.identifier("name") + Optional(stun_body)
 union.ignore(c_style_comment)
 
-struct_or_union = struct("struct") ^ union("union")
+typedef = Literal("typedef")("kind") + Optional(pc.identifier) + stun_body + pc.identifier("name")
+
+struct_or_union_or_typedef = struct ^ union ^ typedef
 
 # Defines
 define = (
@@ -268,7 +270,7 @@ if __name__ == "__main__":
         ccode = "\n".join(
             filter(lambda s: not s.startswith("#"), process.stdout.split("\n"))
         )
-        for item, start, stop in struct_or_union.scanString(ccode):
+        for item, start, stop in struct_or_union_or_typedef.scanString(ccode):
             structs_and_unions[item.name] = item.kind
             for elem in item.elist:
                 if elem.dim and elem.dim.val:
@@ -284,16 +286,24 @@ if __name__ == "__main__":
                 continue
             if kind is None:
                 print(f'\t{{ "{name}", 0 }},', file=out)
+            elif kind == "typedef":
+                print(f'\t{{ "{name}", sizeof({name}) }},', file=out)
             else:
                 print(f'\t{{ "{name}", sizeof({kind} {name}) }},', file=out)
         # For elements of structs and unions that are fixed size arrays,
         # generate size entries as `struct_name.elem_name` and the value
         # in such entries is _dimension of the array_, not size in bytes!
         for kind, item, elem in arrays:
-            print(
-                f'\t{{ "{item}.{elem}", dim({kind}, {item}, {elem}) }},',
-                file=out,
-            )
+            if kind == "typedef":
+                print(
+                    f'\t{{ "{item}.{elem}", dim(, {item}, {elem}) }},',
+                    file=out,
+                )
+            else:
+                print(
+                    f'\t{{ "{item}.{elem}", dim({kind}, {item}, {elem}) }},',
+                    file=out,
+                )
         # Include some typedefs so we can generate architecture-appropriate
         # unpackers for them, if they are used in some of the structs.
         for name in (
