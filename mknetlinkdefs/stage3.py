@@ -160,68 +160,41 @@ class UnionStructVisitor(NodeVisitor):
         elems: List[Element] = []
         for decl in node.decls:
             # Collect Elements for this Item
-            dim: OptionalT[int] = None
             if isinstance(decl.type, ArrayDecl):
-                dim = struc_union_sizes.get(f"{node.name}.{decl.name}", None)
-                if isinstance(decl.type.type.type, IdentifierType):
-                    ekind = Kind.Scalar
-                    esize = struc_union_sizes.get(
-                        " ".join(
-                            nm
-                            for nm in decl.type.type.type.names
-                            if nm != "unsigned"
-                        )
-                    )
-                elif isinstance(decl.type.type.type, (Struct, Union)):
-                    ekind = (
-                        Kind.Struct
-                        if isinstance(decl.type.type.type, Struct)
-                        else Kind.Union
-                    )
-                    esize = struc_union_sizes.get(
-                        decl.type.type.type.name, None
-                    )
-                elif isinstance(decl.type.type, PtrDecl):
-                    ekind = Kind.Pointer
-                    esize = struc_union_sizes.get("__pointer", None)
-                else:
-                    raise RuntimeError(decl.type.type.type)
-            elif isinstance(decl.type, TypeDecl):
-                if isinstance(decl.type.type, IdentifierType):
-                    ekind = Kind.Scalar
-                    esize = struc_union_sizes.get(
-                        " ".join(
-                            nm
-                            for nm in decl.type.type.names
-                            if nm != "unsigned"
-                        )
-                    )
-                elif isinstance(decl.type.type, (Struct, Union)):
-                    ekind = (
-                        Kind.Struct
-                        if isinstance(decl.type.type, Struct)
-                        else Kind.Union
-                    )
-                    esize = struc_union_sizes.get(
-                        decl.type.type.name, None
-                    )
-                else:
-                    raise RuntimeError(decl.type.type.type)
-            elif isinstance(decl.type, PtrDecl):
+                dim: OptionalT[int] = struc_union_sizes.get(
+                    f"{node.name}.{decl.name}", None
+                )
+                membertype = decl.type.type
+            else:
+                dim: OptionalT[int] = None
+                membertype = decl.type
+
+            if isinstance(membertype, TypeDecl):
+                innertype = membertype.type
+            elif isinstance(membertype, (Struct, Union, PtrDecl)):
+                innertype = membertype
+            else:
+                raise RuntimeError(f"Unfamiliar {membertype} in {node.name}")
+
+            if isinstance(innertype, IdentifierType):
+                ekind = Kind.Scalar
+                esize = struc_union_sizes.get(
+                    " ".join(nm for nm in innertype.names if nm != "unsigned")
+                )
+            elif isinstance(innertype, Struct):
+                ekind = Kind.Struct
+                esize = struc_union_sizes.get(innertype.name, None)
+            elif isinstance(innertype, Union):
+                ekind = Kind.Union
+                esize = struc_union_sizes.get(innertype.name, None)
+            elif isinstance(innertype, PtrDecl):
                 ekind = Kind.Pointer
                 esize = struc_union_sizes.get("__pointer", None)
-            elif isinstance(decl.type, (Struct, Union)):
-                ekind = (
-                    Kind.Struct
-                    if isinstance(decl.type, Struct)
-                    else Kind.Union
-                )
-                esize = struc_union_sizes.get(
-                    decl.type.name, None
-                )
+            else:
+                raise RuntimeError(f"Unfamiliar {decl} in {node.name}")
+
             elems.append(Element(decl.name, ekind, esize, dim))
 
-        # node.name and size are attributes for the Item instance
         item = Item(node.name, ikind, isize, tuple(elems))
         print(item)  # Generate python code from it here
 
