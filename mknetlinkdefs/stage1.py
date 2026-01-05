@@ -189,7 +189,12 @@ struct.ignore(c_style_comment)
 union = Literal("union")("kind") + pc.identifier("name") + Optional(stun_body)
 union.ignore(c_style_comment)
 
-typedef = Literal("typedef")("kind") + Optional(pc.identifier) + stun_body + pc.identifier("name")
+typedef = (
+    Literal("typedef")("kind")
+    + Optional(pc.identifier)
+    + stun_body
+    + pc.identifier("name")
+)
 
 struct_or_union_or_typedef = struct ^ union ^ typedef
 
@@ -257,7 +262,7 @@ if __name__ == "__main__":
     ### Parse headers one by one, after preprocessing. Find structs and unions.
 
     # Potential aliases for structs_and_unions, include them first
-    structs_and_unions = { excl: None for excl in EXCL_DEFS}
+    structs_and_unions = {excl: None for excl in EXCL_DEFS}
     arrays = set()
     for infn in HEADERS + extra_headers:
         process = run(

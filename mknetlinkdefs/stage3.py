@@ -89,6 +89,32 @@ TDICT = {
     "sa_family_t": ("H", 0),
 }
 
+FMTDICT = {
+    ("atomic_bool",): "B",  # Artefact of fake_includes
+    ("unsigned", "short", "int"): "H",
+    ("unsigned", "int"): "I",
+    ("__u8",): "B",
+    ("__be64",): "B",
+    ("__s8",): "b",
+    ("__s64",): "q",
+    ("__u32",): "L",
+    ("unsigned", "short"): "H",
+    ("int",): "i",
+    ("__kernel_sa_family_t",): "H",
+    ("__s32",): "l",
+    ("__sum16",): "H",
+    ("unsigned",): "I",
+    ("short",): "h",
+    ("__u64",): "Q",
+    ("unsigned", "char"): "B",
+    ("__be32",): "B",
+    ("__be16",): "B",
+    ("__u16",): "H",
+    ("signed", "char"): "b",
+    ("unsigned", "long"): "L",
+    ("char",): "b",
+}
+
 
 def _mkfmt(tspc, dim, sizecache=None):
     if tspc.startswith("struct"):
@@ -132,6 +158,7 @@ class Element(NamedTuple):
     name: str
     kind: Kind  # of the element of the array, if this is an array
     size: int  # of the element of the array, if this is an array
+    fmt: str  # format specifier for struct pack/unpack (one character)
     dim: OptionalT[int] = None  # None: "not an array", 0 - size undefined
 
 
@@ -160,6 +187,7 @@ class UnionStructVisitor(NodeVisitor):
         elems: List[Element] = []
         for decl in node.decls:
             # Collect Elements for this Item
+            fmt: str = "B"
             if isinstance(decl.type, ArrayDecl):
                 dim: OptionalT[int] = struc_union_sizes.get(
                     f"{node.name}.{decl.name}", None
@@ -181,6 +209,7 @@ class UnionStructVisitor(NodeVisitor):
                 esize = struc_union_sizes.get(
                     " ".join(nm for nm in innertype.names if nm != "unsigned")
                 )
+                fmt = FMTDICT[tuple(sorted(innertype.names, reverse=True))]
             elif isinstance(innertype, Struct):
                 ekind = Kind.Struct
                 esize = struc_union_sizes.get(innertype.name, None)
@@ -193,7 +222,7 @@ class UnionStructVisitor(NodeVisitor):
             else:
                 raise RuntimeError(f"Unfamiliar {decl} in {node.name}")
 
-            elems.append(Element(decl.name, ekind, esize, dim))
+            elems.append(Element(decl.name, ekind, esize, fmt, dim))
 
         item = Item(node.name, ikind, isize, tuple(elems))
         print(item)  # Generate python code from it here

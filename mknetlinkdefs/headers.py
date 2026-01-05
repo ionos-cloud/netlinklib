@@ -1,4 +1,4 @@
-""" List of headers to process and related bits """
+"""List of headers to process and related bits"""
 
 INC = "/usr/include"
 HEADERS = (
