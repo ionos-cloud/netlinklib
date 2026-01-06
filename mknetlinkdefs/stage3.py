@@ -17,6 +17,7 @@ from os import getenv
 from pycparser import CParser
 from pycparser.c_ast import (
     ArrayDecl,
+    Constant,
     Decl,
     IdentifierType,
     Node,
@@ -52,42 +53,6 @@ from headers import INC, HEADERS, PREINC
 from sizes import struc_union_sizes
 
 CPP = "/usr/bin/cpp"
-
-TDICT = {
-    "__kernel_sa_family_t": ("H", 0),
-    "__be16": ("B", 2),
-    "__be32": ("B", 4),
-    "__be64": ("B", 8),
-    "__u8": ("B", 0),
-    "__s8": ("b", 0),
-    "char": ("b", 0),
-    "signedchar": ("B", 0),
-    "unsignedchar": ("B", 0),
-    "__u16": ("H", 0),
-    "short": ("h", 0),
-    "signedshort": ("h", 0),
-    "unsignedshort": ("H", 0),
-    "__s32": ("l", 0),
-    "long": ("l", 0),
-    "signedlong": ("l", 0),
-    "unsignedlong": ("L", 0),
-    "__s64": ("q", 0),
-    "int": ("i", 0),
-    "signed": ("I", 0),
-    "unsigned": ("I", 0),
-    "signedint": ("I", 0),
-    "unsignedint": ("I", 0),
-    "unsignedlong": ("L", 0),
-    "__u32": ("L", 0),
-    "__u64": ("Q", 0),
-    "__time_t": ("Q", 0),  # TODO make this work for 32bit time_t when needed
-    "__atomic_wide_counter": ("Q", 0),  # TODO it's a typedef from struct
-    "__suseconds_t": ("q", 0),  # TODO make this work for 32bit
-    "__syscall_slong_t": ("q", 0),  # TODO make this work for 32bit
-    "__pthread_list_t": ("B", 16),  # TODO it's a typedef from struct
-    "__atomic_wide_counter": ("Q", 0),
-    "sa_family_t": ("H", 0),
-}
 
 FMTDICT = {
     ("atomic_bool",): "B",  # Artefact of fake_includes
@@ -168,10 +133,56 @@ class Item(NamedTuple):
     name: str
     kind: Kind  # only Struct or Union. Do we need Union?...
     size: int
+    bitsize: OptionalT[int]
     elements: Tuple[Element, ...]
+
+    def asclass(self) -> str:
+        if self.name is None or self.size is None:
+            return ""
+
+        classfile = f"\n\nclass {self.name}(NllHdr):\n"
+        classfile += f'\t"""{self.kind.name} {self.name}"""\n'
+        packfmt = "=" + "".join(
+            f"{el.dim if el.dim else ''}{el.fmt}" for el in self.elements
+        )
+        size = calcsize(packfmt)
+        # if size != self.size:
+        #     print("BADSIZE", size, "!=", self.size, self.name)
+        classfile += f'\tPACKFMT = "{packfmt}"\n'
+        classfile += f"\tSIZE = {size}\n\n"
+        classfile += f"\tSPARSE_SIZE = {self.size}\n\n"
+        init_args = ", ".join(
+            "{name}: Union[Callable[[Accum, {t}], Accum], {t}] = {d}".format(
+                name=_slotname(el.name),
+                **(
+                    {"t": "bytes", "d": str(b"\0" * el.dim)}
+                    if el.fmt == "s" and el.dim != ""
+                    else (
+                        {"t": "List[int]", "d": str([0] * el.dim)}
+                        if el.dim
+                        else {"t": "int", "d": "0"}
+                    )
+                ),
+            )
+            for el in self.elements
+            if el.name is not None
+        )
+        super_args = ", ".join(
+            f"{_slotname(el.name)}={_slotname(el.name)}"
+            for el in self.elements
+            if el.name is not None
+        )
+        classfile += f"\tdef __init__(self, *, {init_args}) -> None:\n"
+        classfile += f"\t\tsuper().__init__({super_args})\n"
+        return classfile
 
 
 class UnionStructVisitor(NodeVisitor):
+    outstring: str  # String with python code, new content appended to it
+
+    def __init__(self, outstring: str) -> None:
+        super().__init__()
+        self.outstring = outstring
 
     def _visit_struct_union(self, node: Node) -> None:
         super().generic_visit(node)  # proceed with children, if any
@@ -188,6 +199,7 @@ class UnionStructVisitor(NodeVisitor):
         for decl in node.decls:
             # Collect Elements for this Item
             fmt: str = "B"
+            bitsize: Optional[int] = None
             if isinstance(decl.type, ArrayDecl):
                 dim: OptionalT[int] = struc_union_sizes.get(
                     f"{node.name}.{decl.name}", None
@@ -204,12 +216,26 @@ class UnionStructVisitor(NodeVisitor):
             else:
                 raise RuntimeError(f"Unfamiliar {membertype} in {node.name}")
 
+            if decl.bitsize is not None and not isinstance(
+                innertype, IdentifierType
+            ):
+                raise RuntimeError(
+                    f"bitsize is present for non-identifier: {decl}"
+                )
+
             if isinstance(innertype, IdentifierType):
                 ekind = Kind.Scalar
                 esize = struc_union_sizes.get(
                     " ".join(nm for nm in innertype.names if nm != "unsigned")
                 )
                 fmt = FMTDICT[tuple(sorted(innertype.names, reverse=True))]
+                if decl.bitsize is not None:
+                    if (
+                        not isinstance(decl.bitsize, Constant)
+                        or decl.bitsize.type != "int"
+                    ):
+                        raise RuntimeError(f"Unsupported bitsize in {decl}")
+                    bitsize = decl.bitsize.value
             elif isinstance(innertype, Struct):
                 ekind = Kind.Struct
                 esize = struc_union_sizes.get(innertype.name, None)
@@ -224,8 +250,9 @@ class UnionStructVisitor(NodeVisitor):
 
             elems.append(Element(decl.name, ekind, esize, fmt, dim))
 
-        item = Item(node.name, ikind, isize, tuple(elems))
-        print(item)  # Generate python code from it here
+        self.outstring += Item(
+            node.name, ikind, isize, bitsize, tuple(elems)
+        ).asclass()
 
     visit_Union = _visit_struct_union
     visit_Struct = _visit_struct_union
@@ -256,14 +283,9 @@ if __name__ == "__main__":
         )
         proc.stdin.close()
         ast = CParser().parse(proc.stdout.read(), "combined_headers.c")
-    structs = UnionStructVisitor()
-    structs.visit(ast)
 
-    exit(0)
-
-    quote = '"""'
-    classfile = f"""\
-{quote}Autogenerated file, do not edit!{quote}
+    classhdr = f"""\
+\"\"\" Autogenerated file, do not edit! \"\"\"
 
 # pylint: disable-all
 from struct import pack
@@ -286,51 +308,14 @@ class NllHdr(Dict[str, Any]):
             ),
         )
 """
-    structsize: DictT[str, int] = {  # TODO kill this hack
-        "in6_addr": 16,
-        "iphdr": 20,
-        "ethtool_rx_ntuple_flow_spec": 176,
-    }
-    for clname, _elems in structs.items():
-        elems = tuple(
-            (
-                _slotname(nm),
-                *_mkfmt(tspc, eval(dim) if dim else "", sizecache=structsize),
-            )
-            for nm, tspc, dim in _elems
-        )
-        classfile += f"\n\nclass {clname}(NllHdr):\n"
-        classfile += f'\t"""struct {clname}"""\n'
-        packfmt = "=" + "".join(
-            f"{dim}{fmt}" for _, fmt, dim in elems if dim != 0
-        )
-        size = calcsize(packfmt)
-        structsize[clname] = size
-        classfile += f'\tPACKFMT = "{packfmt}"\n'
-        classfile += f"\tSIZE = {size}\n\n"
-        init_args = ", ".join(
-            "{name}: Union[Callable[[Accum, {t}], Accum], {t}] = {d}".format(
-                name=name,
-                **(
-                    {"t": "bytes", "d": str(b"\0" * dim)}
-                    if fmtchar == "s" and dim != ""
-                    else (
-                        {"t": "List[int]", "d": str([0] * dim)}
-                        if dim
-                        else {"t": "int", "d": "0"}
-                    )
-                ),
-            )
-            for name, fmtchar, dim in elems
-        )
-        super_args = ", ".join(f"{name}={name}" for name, *_ in elems)
-        classfile += f"\tdef __init__(self, *, {init_args}) -> None:\n"
-        classfile += f"\t\tsuper().__init__({super_args})\n"
-    with open(argv[1], "w") as cl_out:
+    structs = UnionStructVisitor(classhdr)
+    structs.visit(ast)
+    if False:
         print(
             format_file_contents(
-                classfile, fast=False, mode=Mode(line_length=79)
+                structs.outstring, fast=False, mode=Mode(line_length=79)
             ),
-            file=cl_out,
             end="",
         )
+    else:
+        print(structs.outstring)
