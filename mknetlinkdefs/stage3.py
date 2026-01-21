@@ -28,8 +28,9 @@ from pycparser.c_ast import (
     Union,
 )
 from struct import calcsize
+from struct import error as StructError
 from subprocess import PIPE, Popen, run, STDOUT
-from sys import argv
+from sys import argv, stderr
 from tempfile import mkstemp
 from typing import (
     Any,
@@ -54,12 +55,12 @@ from sizes import struc_union_sizes
 
 CPP = "/usr/bin/cpp"
 
-FMTDICT = {
+FMTDICT: Dict[Tuple[str, ...], str] = {
     ("atomic_bool",): "B",  # Artefact of fake_includes
     ("unsigned", "short", "int"): "H",
     ("unsigned", "int"): "I",
     ("__u8",): "B",
-    ("__be64",): "B",
+    ("__be64",): "8B",
     ("__s8",): "b",
     ("__s64",): "q",
     ("__u32",): "L",
@@ -72,8 +73,8 @@ FMTDICT = {
     ("short",): "h",
     ("__u64",): "Q",
     ("unsigned", "char"): "B",
-    ("__be32",): "B",
-    ("__be16",): "B",
+    ("__be32",): "4B",
+    ("__be16",): "2B",
     ("__u16",): "H",
     ("signed", "char"): "b",
     ("unsigned", "long"): "L",
@@ -81,33 +82,7 @@ FMTDICT = {
 }
 
 
-def _mkfmt(tspc, dim, sizecache=None):
-    if tspc.startswith("struct"):
-        assert sizecache is not None, "No parse nested struct w/o size cache"
-        name = tspc[6:]
-        if name not in sizecache:
-            raise RuntimeError(f"Could not find the size of struct {name}")
-        return "s", 0 if dim == 0 else sizecache[name]
-    fmt, rev = TDICT[tspc]
-    if fmt == "B" and dim:  # More than one byte: parse into as many `bytes`
-        return "s", dim
-    if rev:  # Non-native byte order: parse into specified number of `bytes`
-        if dim:
-            raise NotImplementedError(
-                "No support for arrays with elements of non-native byte order"
-            )
-        return "s", rev
-    return fmt, dim
-
-
-def _slotname(nm):
-    # Attributes that start with "__" are "class-private", have to avoid.
-    # Attribute named "from" is not possible, mangle it to start with "_".
-    if nm.startswith("__"):
-        return nm[1:]
-    if nm in ("from", "bytes"):
-        return "_" + nm
-    return nm
+size_cache: Dict[str, int] = {}
 
 
 class Kind(Enum):
@@ -123,8 +98,26 @@ class Element(NamedTuple):
     name: str
     kind: Kind  # of the element of the array, if this is an array
     size: int  # of the element of the array, if this is an array
-    fmt: str  # format specifier for struct pack/unpack (one character)
+    fmt: str  # for Scalar, value from FMTDICT
     dim: OptionalT[int] = None  # None: "not an array", 0 - size undefined
+
+    def aname(self) -> str:
+        # Attributes that start with "__" are "class-private", have to avoid.
+        # Attribute named "from" is not possible, mangle it to start with "_".
+        if self.name.startswith("__"):
+            return self.name[1:]
+        if self.name in ("from", "bytes"):
+            return "_" + self.name
+        return self.name
+
+    def fmtspec(self, _parentname: str) -> str:
+        if self.kind is Kind.Struct or self.kind is Kind.Union:
+            return str(self.size) + "s"
+        if self.kind is Kind.Pointer:
+            return "Q"
+        if self.kind is Kind.Scalar:
+            return self.fmt
+
 
 
 class Item(NamedTuple):
@@ -142,18 +135,19 @@ class Item(NamedTuple):
 
         classfile = f"\n\nclass {self.name}(NllHdr):\n"
         classfile += f'\t"""{self.kind.name} {self.name}"""\n'
-        packfmt = "=" + "".join(
-            f"{el.dim if el.dim else ''}{el.fmt}" for el in self.elements
-        )
-        size = calcsize(packfmt)
-        # if size != self.size:
-        #     print("BADSIZE", size, "!=", self.size, self.name)
+        packfmt = "=" + "".join(el.fmtspec(self.name) for el in self.elements)
+        try:
+            size = calcsize(packfmt)
+        except StructError as e:
+            print(e, packfmt, self.name, file=stderr)
+            return ""
+        size_cache[self.name] = size
         classfile += f'\tPACKFMT = "{packfmt}"\n'
         classfile += f"\tSIZE = {size}\n\n"
         classfile += f"\tSPARSE_SIZE = {self.size}\n\n"
         init_args = ", ".join(
             "{name}: Union[Callable[[Accum, {t}], Accum], {t}] = {d}".format(
-                name=_slotname(el.name),
+                name=el.aname(),
                 **(
                     {"t": "bytes", "d": str(b"\0" * el.dim)}
                     if el.fmt == "s" and el.dim != ""
@@ -168,7 +162,7 @@ class Item(NamedTuple):
             if el.name is not None
         )
         super_args = ", ".join(
-            f"{_slotname(el.name)}={_slotname(el.name)}"
+            f"{el.aname()}={el.aname()}"
             for el in self.elements
             if el.name is not None
         )
@@ -198,7 +192,7 @@ class UnionStructVisitor(NodeVisitor):
         elems: List[Element] = []
         for decl in node.decls:
             # Collect Elements for this Item
-            fmt: str = "B"
+            fmt: Tuple[int, str] = (0, "")
             bitsize: Optional[int] = None
             if isinstance(decl.type, ArrayDecl):
                 dim: OptionalT[int] = struc_union_sizes.get(
