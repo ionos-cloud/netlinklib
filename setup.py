@@ -1,3 +1,8 @@
+"""
+Generate netlink definitions before build and provide dynamic version.
+This runs automatically during pip install.
+"""
+
 from os import getcwd, chdir
 from re import findall
 from setuptools import setup
@@ -29,12 +34,5 @@ chdir(curdir)
 
 print(f"configuring package with version {pep_version(version)}")
 setup(
-    name="netlinklib",
     version=pep_version(version),
-    description="Higher performance netlink library",
-    author="Eugene Crosser",
-    author_email="evgenii.cherkashin@ionos.com",
-    packages=["netlinklib"],
-    package_data={'netlinklib': ["py.typed"]},
-    tests_require=["black", "pylint", "mypy"],
 )

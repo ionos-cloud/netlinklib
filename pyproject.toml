@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=61.0", "black", "pyparsing"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "netlinklib"
+dynamic = ["version"]
+description = "Higher performance netlink library"
+authors = [
+    {name = "Eugene Crosser", email = "evgenii.cherkashin@ionos.com"}
+]
+readme = "README.md"
+requires-python = ">=3.8"
+
+[project.optional-dependencies]
+test = ["pylint", "mypy"]
+
+[tool.setuptools.packages.find]
+include = ["netlinklib*"]
+
+[tool.setuptools.package-data]
+netlinklib = ["py.typed"]
