@@ -14,8 +14,11 @@ mkdefs: mkdefs.c
 
 mksize: mksize.c
 
-mkdefs.c mksize.c: stage1.py headers.py
+mkdefs.c namelist.py: stage1.py headers.py
 	python3 stage1.py
 
+mksize.c: stage3.py headers.py
+	python3 stage3.py
+
 clean:
-	rm -f mkdefs.c mkdefs mksize.c mksize sizes.py
+	rm -f mkdefs.c mkdefs namelist.py
