@@ -26,7 +26,13 @@ from typing import Dict as DictT
 from typing import Literal as LiteralT
 from typing import Optional as OptionalT
 from types import TracebackType
-from black import format_file_contents, Mode
+
+try:
+    from black import format_file_contents, Mode
+
+    RUN_BLACK = True
+except ImportError:
+    RUN_BLACK = False
 from pyparsing import *
 from re import match
 
@@ -383,13 +389,20 @@ class NllHdr(Dict[str, Any]):
         classfile += f"\tdef __init__(self, *, {init_args}) -> None:\n"
         classfile += f"\t\tsuper().__init__({super_args})\n"
     with open(argv[1], "w") if len(argv) > 1 else stdout as cl_out:
-        print(
-            format_file_contents(
-                classfile, fast=False, mode=Mode(line_length=79)
-            ),
-            file=cl_out,
-            end="",
-        )
+        if RUN_BLACK:
+            print(
+                format_file_contents(
+                    classfile, fast=False, mode=Mode(line_length=79)
+                ),
+                file=cl_out,
+                end="",
+            )
+        else:
+            print(
+                classfile,
+                file=cl_out,
+                end="",
+            )
 
     # Classes for legacy API to maintain back compatibility
 
@@ -443,10 +456,17 @@ class NllHdr(Dict[str, Any]):
         classfile += "\tdef from_bytes(self, inp: bytes) -> None:\n"
         classfile += f"\t\t{lside} = unpack(self.PACKFMT, inp)\n"
     with open(argv[2], "w") if len(argv) > 2 else stdout as cl_out:
-        print(
-            format_file_contents(
-                classfile, fast=False, mode=Mode(line_length=79)
-            ),
-            file=cl_out,
-            end="",
-        )
+        if RUN_BLACK:
+            print(
+                format_file_contents(
+                    classfile, fast=False, mode=Mode(line_length=79)
+                ),
+                file=cl_out,
+                end="",
+            )
+        else:
+            print(
+                classfile,
+                file=cl_out,
+                end="",
+            )
