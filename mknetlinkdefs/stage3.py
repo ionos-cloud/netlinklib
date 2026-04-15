@@ -11,6 +11,7 @@ This is stage 3. It parses headers "properly" and generates Python file
 with class definition for structures.
 """
 
+from collections import deque
 from enum import Enum
 from io import TextIOWrapper
 from os import getenv
@@ -35,6 +36,7 @@ from tempfile import mkstemp
 from typing import (
     Any,
     ContextManager,
+    Deque,
     Dict,
     IO,
     List,
@@ -205,26 +207,31 @@ class UnionStructVisitor(NodeVisitor):
 
     def __init__(self) -> None:
         super().__init__()
+        self.stack: Deque = deque()
         self.need_dim: Set[Tuple[str, str, str]] = set()
-        self.need_size: Set[Tuple[Optional[str], str, Optional[str]]] = set()
+        self.need_size: Set[Tuple[OptionalT[str], str, OptionalT[str]]] = set()
         self.outstring: str = ""
 
+    def _ancestry(self) -> str:
+        return str(list(self.stack))
+
+    def visit_TypeDecl(self, node: Node) -> None:
+        """For typedefs that give a name to unnamed structs/unions"""
+        self.stack.append((None, node.declname))
+        super().generic_visit(node)
+        self.stack.pop()
+
     def _visit_struct_union(self, node: Node) -> None:
-        super().generic_visit(node)  # proceed with children, if any
+        self.stack.append((node.__class__.__name__.lower(), node.name))
+        ikind = Kind.Struct if isinstance(node, Struct) else Kind.Union
 
         isize = 0
-        ikind = Kind.Struct if isinstance(node, Struct) else Kind.Union
-        # Struct-s and Union-s are guaranteed to have "decls", maybe None
-        numdecls = len(node.decls or [])
-        if numdecls < 1:
-            # This is a reference to a struct/union declared elsewhere
-            return
 
         elems: List[Element] = []
-        for decl in node.decls:
+        for decl in node.decls or []:  # decls is None if there's no body
             # Collect Elements for this Item
             fmt: Tuple[int, str] = (0, "")
-            bitsize: Optional[int] = None
+            bitsize: OptionalT[int] = None
             if isinstance(decl.type, ArrayDecl):
                 dim: OptionalT[int] = None
                 self.need_dim.add((ikind.name.lower(), node.name, decl.name))
@@ -274,10 +281,9 @@ class UnionStructVisitor(NodeVisitor):
                     else Kind.Union
                 )
                 esize = 0  # struc_union_sizes.get(innertype.name, None)
-                if innertype.name is None:
-                    self.need_size.add((ikind.name.lower(), node.name, decl.name))
-                else:
-                    self.need_size.add((ekind.name.lower(), innertype.name, None))
+                # self.need_size.add(
+                #    (ikind.name.lower(), self._getname(node), decl.name)
+                # )
             elif isinstance(innertype, PtrDecl):
                 ekind = Kind.Pointer
                 esize = 0  # struc_union_sizes.get("__pointer", None)
@@ -285,11 +291,14 @@ class UnionStructVisitor(NodeVisitor):
             else:
                 raise RuntimeError(f"Unfamiliar {decl} in {node.name}")
 
+            print(self._ancestry(), decl.name, ekind, fmt)
             elems.append(Element(decl.name, ekind, esize, fmt, dim))
 
-        self.outstring += Item(
-            node.name, ikind, isize, bitsize, tuple(elems)
-        ).asclass()
+        # self.outstring += Item(
+        #     node.name, ikind, isize, bitsize, tuple(elems)
+        # ).asclass()
+        super().generic_visit(node)
+        self.stack.pop()
 
     visit_Union = _visit_struct_union
     visit_Struct = _visit_struct_union
@@ -363,13 +372,15 @@ if __name__ == "__main__":
             if n == "atomic_bool":
                 continue
             if n == "__pointer":
-                print(f"\t{{ \"{n}\", sizeof(void *) }},", file=out)
+                print(f'\t{{ "{n}", sizeof(void *) }},', file=out)
             elif k is None:
-                print(f"\t{{ \"{n}\", sizeof({n}) }},", file=out)
+                print(f'\t{{ "{n}", sizeof({n}) }},', file=out)
             elif e is None:
-                print(f"\t{{ \"{n}\", sizeof({k} {n}) }},", file=out)
+                print(f'\t{{ "{n}", sizeof({k} {n}) }},', file=out)
             else:
-                print(f"\t{{ \"{n}.{e}\", sizeof((({k} {n}*)0)->{e}) }},", file=out)
+                print(
+                    f'\t{{ "{n}.{e}", sizeof((({k} {n}*)0)->{e}) }},', file=out
+                )
             # if n in size_cache:
             #     print(k, n, e, size_cache[n])
             # else:
