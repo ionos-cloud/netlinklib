@@ -15,7 +15,17 @@ try:
 except DistributionNotFound:
     pass
 
+# Black is broken in later point-releases of bullseye.
+# If import fails, skip the test
+try:
+    import black  # pylint: disable=unused-import  # noqa: F401
 
+    RUN_TEST = True
+except ImportError:
+    RUN_TEST = False
+
+
+@skipUnless(RUN_TEST, "black broken in bullseye distro")
 @skipUnless(
     no_less_than("24")(black_version), "black 24.0 and up is acceptable"
 )
