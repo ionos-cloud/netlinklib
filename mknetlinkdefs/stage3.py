@@ -212,28 +212,42 @@ class UnionStructVisitor(NodeVisitor):
         self.need_size: Set[Tuple[OptionalT[str], str, OptionalT[str]]] = set()
         self.outstring: str = ""
 
-    def _ancestry(self) -> str:
-        return str(list(self.stack))
+    def _ancestry(self) -> Tuple[str, str, str]:
+        # returns tuple (root_kind, root_name, string_of_qualifiers)
+        # print("STACK", self.stack)
+        q: List[str] = []
+        for k, n in iter(self.stack):
+            if k is not None and n is not None:
+                break
+            if n is not None:
+                q.append(n)
+        # For a typedef over unnamed struct, yield k=None, n=root_n
+        # print(k, n, list(reversed(q)))
+        return k, n, "".join(f"{el}." for el in reversed(q))
 
     def visit_TypeDecl(self, node: Node) -> None:
         """For typedefs that give a name to unnamed structs/unions"""
-        self.stack.append((None, node.declname))
+        self.stack.appendleft((None, node.declname))
         super().generic_visit(node)
-        self.stack.pop()
+        self.stack.popleft()
 
     def _visit_struct_union(self, node: Node) -> None:
-        self.stack.append((node.__class__.__name__.lower(), node.name))
+        self.stack.appendleft((node.__class__.__name__.lower(), node.name))
         ikind = Kind.Struct if isinstance(node, Struct) else Kind.Union
 
         isize = 0
 
+        root_k, root_n, quals = self._ancestry()
         elems: List[Element] = []
         for decl in node.decls or []:  # decls is None if there's no body
             # Collect Elements for this Item
+            if decl.name is None:  # Not interested in anonymous constructs
+                continue
+
             fmt: Tuple[int, str] = (0, "")
             bitsize: OptionalT[int] = None
             if isinstance(decl.type, ArrayDecl):
-                dim: OptionalT[int] = None
+                dim: OptionalT[int] = 0
                 self.need_dim.add((ikind.name.lower(), node.name, decl.name))
                 membertype = decl.type.type
             else:
@@ -281,9 +295,10 @@ class UnionStructVisitor(NodeVisitor):
                     else Kind.Union
                 )
                 esize = 0  # struc_union_sizes.get(innertype.name, None)
-                # self.need_size.add(
-                #    (ikind.name.lower(), self._getname(node), decl.name)
-                # )
+                if dim == 0:
+                    print("Skip need_size for", root_k, root_n, quals + decl.name)
+                else:
+                    self.need_size.add((root_k, root_n, quals + decl.name))
             elif isinstance(innertype, PtrDecl):
                 ekind = Kind.Pointer
                 esize = 0  # struc_union_sizes.get("__pointer", None)
@@ -291,14 +306,14 @@ class UnionStructVisitor(NodeVisitor):
             else:
                 raise RuntimeError(f"Unfamiliar {decl} in {node.name}")
 
-            print(self._ancestry(), decl.name, ekind, fmt)
+            # print(f"(({root_k} {root_n} *)0)->{quals}{decl.name}", ekind, fmt)
             elems.append(Element(decl.name, ekind, esize, fmt, dim))
 
         # self.outstring += Item(
         #     node.name, ikind, isize, bitsize, tuple(elems)
         # ).asclass()
         super().generic_visit(node)
-        self.stack.pop()
+        self.stack.popleft()
 
     visit_Union = _visit_struct_union
     visit_Struct = _visit_struct_union
