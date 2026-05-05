@@ -4,8 +4,8 @@ all: ../netlinklib/defs.py ../netlinklib/classes.py
 	./mkdefs >$@
 	black -l79 $@
 
-../netlinklib/classes.py: stage3.py sizes.py headers.py
-	python3 stage3.py >$@
+../netlinklib/classes.py: stage35.py sizes.py headers.py
+	python3 stage35.py >$@
 
 sizes.py: mksize
 	./mksize >$@
@@ -17,8 +17,8 @@ mksize: mksize.c
 mkdefs.c namelist.py: stage1.py headers.py
 	python3 stage1.py
 
-mksize.c: stage3.py headers.py
-	python3 stage3.py
+mksize.c: stage35.py headers.py
+	python3 stage35.py -3
 
 clean:
 	rm -f mkdefs.c mkdefs namelist.py
