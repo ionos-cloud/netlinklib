@@ -406,7 +406,7 @@ class NlaMac(_NlaScalar[str]):
 ############################################################
 
 
-def _messages(sk: socket) -> Iterator[Tuple[int, int, int, int, bytes]]:
+def _messages(sk: socket) -> Iterator[Tuple[int, int, int, int, Any]]:
     """
     Iterator to return sequence of nl messages read from the socket.
     Netlink uses datagram sockets, so messages are received whole.
