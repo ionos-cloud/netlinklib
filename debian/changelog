@@ -1,3 +1,9 @@
+netlinklib (2.2.5) stable; urgency=medium
+
+  * tests: temporarily ignore type error on new mypy
+
+ -- Eugene Crosser <evgenii.cherkashin@cloud.ionos.com>  Tue, 19 May 2026 13:08:38 +0200
+
 netlinklib (2.2.4) stable; urgency=medium
 
   * tests: check if black is broken and don't run
